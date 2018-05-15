@@ -6,6 +6,8 @@
 #define MASTER 0
 using namespace std;
 
+
+
 int main(int argc, char *argv[]){
 	int rank, size;
 
