@@ -1,7 +1,9 @@
 #include <func.hpp>
-std::stringstream ss;
 
+// ADD -c FLAG TO COMPILE WITH OUT MAIN
+//TODO fix size for char buf
 std::pair<std::string,int> map(char *buf,long &offset){
+	std::stringstream ss;
 	std::pair <std::string,int> p;
 	while(true){
 		if(isdigit(buf[offset])){
@@ -24,9 +26,11 @@ std::pair<std::string,int> map(char *buf,long &offset){
 			return p;
 		}
 		offset++;
-		if(offset>64)
+
+		if(offset>64){
 			p = std::make_pair ("fail",0);
 			return p;
+		}
 	}
 	
 
