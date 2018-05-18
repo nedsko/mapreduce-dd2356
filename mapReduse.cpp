@@ -5,7 +5,7 @@
 #include <vector>
 #include <map>
 #include <cstdint>
-#define FILE "test_tiny.txt"
+#define FILE "number_test.txt"
 #define MASTER 0
 
 
@@ -58,8 +58,18 @@ int main(int argc, char *argv[]){
 	}
 	MPI_Bcast(&nr_of_reads, 1, MPI_INT, MASTER, MPI_COMM_WORLD);
 	
+	//sendcount = 0 fore master 64 fore the rest
+	int *sendCount = new int[num_ranks];
+	fill(sendCount,sendCount+num_ranks,64);
+	sendCount[0] = 0;
+	//index zero and one are 0 maseter dont get any data
+	int *displ = new int[num_ranks]{0};
+	for(int k = 1; k<num_ranks;k++){
+		displ[k] = (k-1)*64; 
+	}
 	
-	
+	//master recives 0 data
+	int recvcount = (rank==MASTER) ? 0:64;
 	cout<<"nr of reads "<<nr_of_reads<<endl;
 	vector<map<string, pair<string,int>>> buckets(num_ranks);
 	for(int i = 0; i<nr_of_reads;i++){
@@ -69,11 +79,6 @@ int main(int argc, char *argv[]){
 			
 		}
 		
-		int sendCount[2] = {0,64};
-		int displ[2] = {0,0};
-
-		
-		int recvcount = (rank==MASTER) ? 0:64;
 		MPI_Scatterv(send_buf,sendCount,displ,MPI_BYTE,re_buf,recvcount,MPI_BYTE,MASTER,MPI_COMM_WORLD);
 		if(rank!=MASTER){
 			//do slave work
@@ -88,8 +93,9 @@ int main(int argc, char *argv[]){
 					key = p.first;
 					//cout<<"test found bucket = "<<calculateDestRank(p.first.data(),p.first.length(),num_ranks)<<endl;
 				}
-				cout<<"key="<<p.first<<endl;
+				
 				*/
+				cout<<"key="<<p.first<<endl;
 				if(p.first == "fail" && p.second == 0){
 					break;
 				}
@@ -108,21 +114,13 @@ int main(int argc, char *argv[]){
 			}
 			
 		}
+		//Mpi_Alltoall()
 		
 
 
 	}
 
 	
-		
-	
-	
-	
-	//cout<<"FILE"<<file_size<<endl;
-	//cout<<"print"<<endl;
-	//for(int i = 0; i<64; i++){
-	//	cout<<buf[i]<<endl;
-	//}
 	MPI_Finalize();
 	return 0;
 }

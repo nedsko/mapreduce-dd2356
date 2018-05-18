@@ -16,4 +16,4 @@ func.o: func.cpp func.hpp
 run:
 	make
 	clear
-	mpirun -n 2 ./$(TARGET).out
+	mpirun -n 4 ./$(TARGET).out
