@@ -1,4 +1,4 @@
-#include <func.hpp>
+#include "func.hpp"
 
 // ADD -c FLAG TO COMPILE WITH OUT MAIN
 //TODO fix size for char buf
@@ -45,10 +45,10 @@ std::pair<std::string,int> func_map(char *buf,long &offset){
 			return p;
 		}
 	}
-	
+
 
 }
 
 void reduce(std::pair<std::string, int> &p1, std::pair<std::string, int> p2){
 	p1.second += p2.second;
-} 
+}

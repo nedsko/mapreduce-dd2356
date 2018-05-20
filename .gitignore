@@ -31,4 +31,8 @@
 *.out
 *.app
 
+# Text files
 *.txt
+
+# Mac specific files
+*.DS_Store

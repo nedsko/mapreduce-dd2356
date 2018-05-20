@@ -16,4 +16,7 @@ func.o: func.cpp func.hpp
 run:
 	make
 	clear
-	mpirun -n 4 ./$(TARGET).out
+	mpirun -n 2 ./$(TARGET).out
+
+test: func.o
+	g++ test.cpp -o test.out func.o -std=c++11
