@@ -7,49 +7,50 @@ Key_value func_map(char *buf,long &offset){
 	std::stringstream ss;
 	struct Key_value *p = new Key_value;
 	int char_count = 0;
-		while(true){
+	while(true){
 		if(isdigit(buf[offset])){
 
 			while(isdigit(buf[offset])){
-				ss<<buf[offset];
+				p->key[char_count]=buf[offset];
 				char_count++;
 				offset++;
 			}
 			while(char_count<KEY_MAX_SIZE){
+				p->key[char_count]='\0';
 				char_count++;
-				ss<<'\0';
 			}
-			std::string str = ss.str();
-			p->key = str;
 			p->count=1;
 			return *p;
 
 		}
 		else if(isalpha(buf[offset])){
 			while(isalpha(buf[offset])){
-				ss<<buf[offset];
+				p->key[char_count]=buf[offset];
 				char_count++;
 				offset++;
 			}
 			while(char_count<KEY_MAX_SIZE){
+				p->key[char_count]='\0';
 				char_count++;
-				ss<<'\0';
 			}
-			std::string str = ss.str();
-			p->key = str;
 			p->count=1;
 			return *p;
 		}
 		offset++;
 
 		if(offset>64){
-			
-			p->key = "fail";
+			while(char_count<KEY_MAX_SIZE){
+				p->key[char_count]='\0';
+				char_count++;
+			}
 			p->count=0;
 			return *p;
 		}
 	}
+
+
 }
+
 void reduce(Key_value &p1, Key_value p2){
 	p1.count += p2.count;
 }

@@ -7,8 +7,9 @@
 #define KEY_MAX_SIZE 30
 struct Key_value
 {
-	std::string key;
-	long count; 
+	long count;
+	char key[KEY_MAX_SIZE];
+	 
 };
 Key_value func_map(char *buf,long &offset);
 

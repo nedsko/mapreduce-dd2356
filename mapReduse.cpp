@@ -43,7 +43,19 @@ int main(int argc, char *argv[]){
 	MPI_Comm_size(MPI_COMM_WORLD, &num_ranks);
 
 	MPI_File fh;
+	
+	const int nitems=2;
+	int blocklengths[2] = {1,30};
+    MPI_Datatype types[2] = {MPI_LONG, MPI_CHAR};
+    MPI_Datatype mpi_key_value_type;
+    MPI_Aint     offsets[2];
 
+    offsets[0] = 0;
+    offsets[1] = sizeof(long);
+
+    MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_key_value_type);
+    MPI_Type_commit(&mpi_key_value_type);
+	
 	char *send_buf = new char[64*num_ranks-1];
 	char *re_buf = new char[64];
 
@@ -89,30 +101,31 @@ int main(int argc, char *argv[]){
 			while(offset<64){
 
 				Key_value p = func_map(re_buf,offset);
-				
+				/*
 				if(p.key.compare(0,3,"abc")==0){
 					key_33 = p.key;
 					//cout<<"test found bucket = "<<calculateDestRank(p.key.data(),p.key.length(),num_ranks)<<endl;
 				}
-				
-				
+				*/
+				string key_test = p.key;
 				//cout<<"key="<<p.key<<endl;
 				if(p.count == 0){
 					break;
 				}
 
-				bucket_index = calculateDestRank(p.key.c_str(),KEY_MAX_SIZE,num_ranks);
-				cout<<"antal ggr ="<<buckets[bucket_index].count(p.key)<<" key="<<p.key<<endl;
-				//cout<<"p adres = "<<&p<<endl;
-				if(buckets[bucket_index].count(p.key)==0){
+				bucket_index = calculateDestRank(p.key,KEY_MAX_SIZE,num_ranks);
+				cout<<"antal ggr ="<<buckets[bucket_index].count(key_test)<<" key="<<p.key<<endl;
+				
+				//cout<<endl;
+				if(buckets[bucket_index].count(key_test)==0){
 					//add
-					//cout<<"added "<<p.key<<" to map"<<endl;
-					buckets[bucket_index][p.key] = p;
+					cout<<"added "<<p.key<<" to map"<<endl;
+					buckets[bucket_index][key_test] = p;
 				}
 				else{
 					//increas value
 					
-					buckets[bucket_index][p.key].count++;
+					buckets[bucket_index][key_test].count++;
 					cout<<"increas value to "<<buckets[bucket_index][p.key].count<<endl;
 				}
 
@@ -134,10 +147,9 @@ int main(int argc, char *argv[]){
 
 
 	}
-	cout<<"key value= "<<buckets[1][key_33].key<<endl;
-	cout<<"print 33 ="<<buckets[1][key_33].count<<endl;
+	
 	int nr_in_bucket[num_ranks];
-	cout<<"nr of rankes"<<num_ranks<<endl;
+	//cout<<"nr of rankes"<<num_ranks<<endl;
 	for(int k = 0; k<num_ranks;k++){
 		nr_in_bucket[k] = buckets[k].size();
 		cout<<"my rank"<<rank<<endl;
