@@ -15,14 +15,14 @@ using namespace std;
 
 int main(int argc, char *argv[]){
 
-	
 	string s = "test@1234 hej$ bla@test.se                                                                      ";//"test 1234 hej bla@test.se";
 	char *temp = new char[s.length()+1];
 	strcpy(temp,s.c_str());
 	long of = 0;
 	for(int i = 0; i<10;i++){
-		pair<string,int> p = map(temp,of);
-		cout<<p.first.length()<<" value"<<p.second<<endl;	
+		struct Key_value *p = func_map(temp,of);
+
+		cout<<p->key<<" value"<<p->count<<endl;	
 	}
 	
 	return 0;

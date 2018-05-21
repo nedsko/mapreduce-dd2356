@@ -67,11 +67,11 @@ int main(int argc, char *argv[]){
 	for(int k = 1; k<num_ranks;k++){
 		displ[k] = (k-1)*64; 
 	}
-	
+	string key_33;
 	//master recives 0 data
 	int recvcount = (rank==MASTER) ? 0:64;
 	cout<<"nr of reads "<<nr_of_reads<<endl;
-	vector<map<string, pair<string,int>>> buckets(num_ranks);
+	vector<map<string, Key_value>> buckets(num_ranks);
 	for(int i = 0; i<nr_of_reads;i++){
 
 		if(rank == MASTER){
@@ -87,39 +87,62 @@ int main(int argc, char *argv[]){
 			string key;
 			
 			while(offset<64){
-				pair<string,int> p = func_map(re_buf,offset);
-				/*
-				if(p.first.compare(0,4,"test")==0){
-					key = p.first;
-					//cout<<"test found bucket = "<<calculateDestRank(p.first.data(),p.first.length(),num_ranks)<<endl;
+
+				Key_value p = func_map(re_buf,offset);
+				
+				if(p.key.compare(0,3,"abc")==0){
+					key_33 = p.key;
+					//cout<<"test found bucket = "<<calculateDestRank(p.key.data(),p.key.length(),num_ranks)<<endl;
 				}
 				
-				*/
-				cout<<"key="<<p.first<<endl;
-				if(p.first == "fail" && p.second == 0){
+				
+				//cout<<"key="<<p.key<<endl;
+				if(p.count == 0){
 					break;
 				}
 
-				bucket_index = calculateDestRank(p.first.data(),p.first.length(),num_ranks);
-				if(buckets[bucket_index].count(p.first)==0){
+				bucket_index = calculateDestRank(p.key.c_str(),KEY_MAX_SIZE,num_ranks);
+				cout<<"antal ggr ="<<buckets[bucket_index].count(p.key)<<" key="<<p.key<<endl;
+				//cout<<"p adres = "<<&p<<endl;
+				if(buckets[bucket_index].count(p.key)==0){
 					//add
-					buckets[bucket_index][p.first] = p;
+					//cout<<"added "<<p.key<<" to map"<<endl;
+					buckets[bucket_index][p.key] = p;
 				}
 				else{
 					//increas value
-					buckets[bucket_index][p.first].second++;
+					
+					buckets[bucket_index][p.key].count++;
+					cout<<"increas value to "<<buckets[bucket_index][p.key].count<<endl;
 				}
 
 
 			}
 			
 		}
-		//Mpi_Alltoall()
+
+
+		//Mpi_Alltoallv()
+		//send = vektor.data
+		/*
+		int MPI_Alltoallv(const void *sendbuf, const int *sendcounts,
+                  const int *sdispls, MPI_Datatype sendtype, void *recvbuf,
+                  const int *recvcounts, const int *rdispls, MPI_Datatype recvtype,
+                  MPI_Comm comm)
+        */
 		
 
 
 	}
-
+	cout<<"key value= "<<buckets[1][key_33].key<<endl;
+	cout<<"print 33 ="<<buckets[1][key_33].count<<endl;
+	int nr_in_bucket[num_ranks];
+	cout<<"nr of rankes"<<num_ranks<<endl;
+	for(int k = 0; k<num_ranks;k++){
+		nr_in_bucket[k] = buckets[k].size();
+		cout<<"my rank"<<rank<<endl;
+		cout<<"antal i buket "<<k<<"="<<nr_in_bucket[k]<<endl;
+	}
 	
 	MPI_Finalize();
 	return 0;

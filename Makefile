@@ -19,4 +19,4 @@ run:
 	mpirun -n 2 ./$(TARGET).out
 
 test: func.o
-	g++ test.cpp -o test.out func.o -std=c++11
+	g++ -I$(shell pwd) test.cpp -o test.out func.o -std=c++11

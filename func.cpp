@@ -1,13 +1,13 @@
 #include "func.hpp"
 
+
 // ADD -c FLAG TO COMPILE WITH OUT MAIN
 //TODO fix size for char buf
-std::pair<std::string,int> func_map(char *buf,long &offset){
+Key_value func_map(char *buf,long &offset){
 	std::stringstream ss;
-	std::pair <std::string,int> p;
+	struct Key_value *p = new Key_value;
 	int char_count = 0;
-	int key_max_size = 30;
-	while(true){
+		while(true){
 		if(isdigit(buf[offset])){
 
 			while(isdigit(buf[offset])){
@@ -15,13 +15,14 @@ std::pair<std::string,int> func_map(char *buf,long &offset){
 				char_count++;
 				offset++;
 			}
-			while(char_count<key_max_size){
+			while(char_count<KEY_MAX_SIZE){
 				char_count++;
 				ss<<'\0';
 			}
 			std::string str = ss.str();
-			p = std::make_pair (str,1);
-			return p;
+			p->key = str;
+			p->count=1;
+			return *p;
 
 		}
 		else if(isalpha(buf[offset])){
@@ -30,25 +31,25 @@ std::pair<std::string,int> func_map(char *buf,long &offset){
 				char_count++;
 				offset++;
 			}
-			while(char_count<key_max_size){
+			while(char_count<KEY_MAX_SIZE){
 				char_count++;
 				ss<<'\0';
 			}
 			std::string str = ss.str();
-			p = std::make_pair (str,1);
-			return p;
+			p->key = str;
+			p->count=1;
+			return *p;
 		}
 		offset++;
 
 		if(offset>64){
-			p = std::make_pair ("fail",0);
-			return p;
+			
+			p->key = "fail";
+			p->count=0;
+			return *p;
 		}
 	}
-
-
 }
-
-void reduce(std::pair<std::string, int> &p1, std::pair<std::string, int> p2){
-	p1.second += p2.second;
+void reduce(Key_value &p1, Key_value p2){
+	p1.count += p2.count;
 }
