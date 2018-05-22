@@ -1,12 +1,15 @@
 #include <mpi.h>
 #include <iostream>
+#include <stdio.h>
 #include <string>
+#include <cstring>
 #include "func.hpp"
 #include <vector>
 #include <map>
 #include <cstdint>
 #define FILE "number_test.txt"
 #define MASTER 0
+#define NULL_STRING "fail\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
 
 
 
@@ -83,7 +86,9 @@ int main(int argc, char *argv[]){
 	//master recives 0 data
 	int recvcount = (rank==MASTER) ? 0:64;
 	cout<<"nr of reads "<<nr_of_reads<<endl;
+	//TODO add to heap
 	vector<map<string, Key_value>> buckets(num_ranks);
+	//map loop
 	for(int i = 0; i<nr_of_reads;i++){
 
 		if(rank == MASTER){
@@ -114,19 +119,19 @@ int main(int argc, char *argv[]){
 				}
 
 				bucket_index = calculateDestRank(p.key,KEY_MAX_SIZE,num_ranks);
-				cout<<"antal ggr ="<<buckets[bucket_index].count(key_test)<<" key="<<p.key<<endl;
+				//cout<<"antal ggr ="<<buckets[bucket_index].count(key_test)<<" key="<<p.key<<endl;
 				
 				//cout<<endl;
 				if(buckets[bucket_index].count(key_test)==0){
 					//add
-					cout<<"added "<<p.key<<" to map"<<endl;
+					//cout<<"added "<<p.key<<" to map"<<endl;
 					buckets[bucket_index][key_test] = p;
 				}
 				else{
 					//increas value
 					
 					buckets[bucket_index][key_test].count++;
-					cout<<"increas value to "<<buckets[bucket_index][p.key].count<<endl;
+					//cout<<"increas value to "<<buckets[bucket_index][p.key].count<<endl;
 				}
 
 
@@ -143,19 +148,72 @@ int main(int argc, char *argv[]){
                   const int *recvcounts, const int *rdispls, MPI_Datatype recvtype,
                   MPI_Comm comm)
         */
+		//TODO shrink vektor to size
+	    
 		
 
 
 	}
-	
+
 	int nr_in_bucket[num_ranks];
-	//cout<<"nr of rankes"<<num_ranks<<endl;
+	int total_bucket_size = 0;
+	int max = 0;
+	int re_global_max = 0;
+	int send_displ[num_ranks];
 	for(int k = 0; k<num_ranks;k++){
 		nr_in_bucket[k] = buckets[k].size();
-		cout<<"my rank"<<rank<<endl;
-		cout<<"antal i buket "<<k<<"="<<nr_in_bucket[k]<<endl;
+		cout<<"nr in bucket rank = "<<rank<<" nr = "<<nr_in_bucket[k]<<endl;
+		if(max<nr_in_bucket[k])
+			max = nr_in_bucket[k];
+		total_bucket_size += buckets[k].size();
 	}
+	/*
+	send_displ[0] = 0;
+	int prev_send_disp = 0;
+	for(int i = 1; i<num_ranks;i++){
+		send_displ[i] = sizeof(Key_value)*nr_in_bucket[i-1]+prev_send_disp;
+		prev_send_disp = send_displ[i];
+	}*/
+	//get max recive count
+	MPI_Allreduce(&max, &re_global_max, 1,MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+	cout<<"max size = "<<re_global_max<<endl;
+	vector<Key_value> *send_vector = new vector<Key_value>;
+	vector<Key_value> *recv_vector = new vector<Key_value>(re_global_max*num_ranks);
 	
+	for(int b = 0; b<num_ranks;b++){
+		int curent_size = 0;
+		for(auto it = buckets[b].begin(); it!=buckets[b].end();++it){
+			send_vector->push_back(it->second);
+			//cout<<"added good value"<<endl;
+			curent_size++;
+		}
+		for(int i = curent_size;curent_size<re_global_max;curent_size++){
+			Key_value *temp_key_value = new Key_value;
+			temp_key_value->count = 0;
+			strncpy(temp_key_value->key, NULL_STRING, 30);
+			
+			send_vector->push_back(*temp_key_value);
+		}	
+	}
+	if(rank!=MASTER){
+	for(auto it = send_vector->begin(); it != send_vector->end();++it){
+		
+		cout<<"rank "<<rank<<" key "<<it->key<<endl;
+	}
+	}
+	//cout<<"size of send vetor "<<send_vector->size()<<endl;
+	MPI_Alltoall(send_vector->data(),re_global_max,mpi_key_value_type,recv_vector->data(),re_global_max,mpi_key_value_type,MPI_COMM_WORLD);
+	cout<<"recev"<<endl;
+	if(rank==MASTER){
+	int nr = 0;
+	for(auto it = recv_vector->begin(); it != recv_vector->end();++it){
+		nr++;
+		cout<<"rank "<<rank<<" key "<<it->key<<endl;
+	}
+	cout<<"antal recived "<<nr<<endl;
+	}
+	//TODO mpi type free and free alloced memory
 	MPI_Finalize();
 	return 0;
 }
