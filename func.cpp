@@ -37,7 +37,7 @@ Key_value func_map(char *buf,long &offset){
 			return *p;
 		}
 		offset++;
-
+		//TODO files gets error if no word at end
 		if(offset>64){
 			while(char_count<KEY_MAX_SIZE){
 				p->key[char_count]='\0';
