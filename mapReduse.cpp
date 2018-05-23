@@ -7,12 +7,12 @@
 #include <vector>
 #include <map>
 #include <cstdint>
-#define FILE "number_test.txt"
+#define FILE "wikipedia_test_small.txt"
 #define MASTER 0
 #define NULL_STRING "fail\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
 
 
-
+//wikipedia_test_small.txt number_test.txt
 using namespace std;
 
 
@@ -207,15 +207,7 @@ int main(int argc, char *argv[]){
 	MPI_Alltoall(send_vector->data(),re_global_max,mpi_key_value_type,recv_vector->data(),re_global_max,mpi_key_value_type,MPI_COMM_WORLD);
 
 	cout<<"recev"<<endl;
-	if(rank!=MASTER){
-	int nr = 0;
-	for(auto it = recv_vector->begin(); it != recv_vector->end();++it){
-		nr++;
-		cout<<"rank "<<rank<<" key "<<it->key<<endl;
-	}
-	//cout<<"antal recived "<<nr<<endl;
-	}
-
+		
 	map<string, Key_value> agg_key_value_map;
 	for(auto it = recv_vector->begin(); it != recv_vector->end();++it){
 		string key_test = it->key;
@@ -240,7 +232,7 @@ int main(int argc, char *argv[]){
 	int size_recv[num_ranks];
 	int recv_displ[num_ranks];
 	
-	cout<<"vector_send_size = "<<vector_send_size<<endl;
+	//cout<<"vector_send_size = "<<vector_send_size<<endl;
 	//MPI_Reduce(&vector_send_size, &re_max_map_size, 1,MPI_INT, MPI_MAX,MASTER, MPI_COMM_WORLD);
 	MPI_Allgather(&vector_send_size,1,MPI_INT,&size_recv,1,MPI_INT,MPI_COMM_WORLD);
 	
@@ -251,18 +243,30 @@ int main(int argc, char *argv[]){
 		recv_displ[i] = size_recv[i-1]+prev;
 		prev = recv_displ[i];
 	}
-	if(true){
-	for(auto it = send_vector_agg->begin();it != send_vector_agg->end();++it){
-			//cout<<"loop start"<<endl;
-			cout<<"key = "<<it->key<<" value "<<it->count<<"rank ="<<rank<<endl;
-			//cout<<"loop end"<<endl;
-		}
-	}
-
 	/*
-	MPI_Gatherv(send_vector_agg, vector_send_size, mpi_key_value_type,recv_vector_agg, size_recv,recv_displ, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
+	for(auto it = send_vector_agg->begin();it != send_vector_agg->end();++it){
+		
+		cout<<"key = "<<it->key<<" value "<<it->count<<"rank ="<<rank<<endl;
+		
+	}
+	*/
+	int my_send_vector_agg_size = send_vector_agg->size();
+	int max_send_vector_agg_size; 
+	MPI_Allreduce(&my_send_vector_agg_size, &max_send_vector_agg_size, 1,MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+	for(int i = my_send_vector_agg_size;i<max_send_vector_agg_size;i++){
+		Key_value *temp_key_value = new Key_value;
+		temp_key_value->count = 0;
+		strncpy(temp_key_value->key, NULL_STRING, 30);
+		send_vector_agg->push_back(*temp_key_value);
+	}
+	cout<<"send_vector_agg size "<<send_vector_agg->size()<<"rank"<<rank<<endl;
+	cout<<"max_send_vector_agg_size "<<max_send_vector_agg_size<<endl;
+	MPI_Gather(send_vector_agg, max_send_vector_agg_size, mpi_key_value_type,recv_vector_agg, max_send_vector_agg_size, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
+	cout<<"gather ok? rank "<<rank<<endl;
+	
+	//MPI_Gatherv(send_vector_agg, vector_send_size, mpi_key_value_type,recv_vector_agg, size_recv,recv_displ, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
 	//TODO mpi type free and free alloced memory
-
+	
 	if(rank == MASTER){
 		cout<<endl<<endl;
 		for(auto it = recv_vector_agg->begin();it != recv_vector_agg->end();++it){
@@ -271,7 +275,7 @@ int main(int argc, char *argv[]){
 			//cout<<"loop end"<<endl;
 		}
 	}
-	*/
+	
 	MPI_Finalize();
 	return 0;
 }
