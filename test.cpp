@@ -20,11 +20,11 @@ int main(int argc, char *argv[]){
 	strcpy(temp,s.c_str());
 	long of = 0;
 	for(int i = 0; i<10;i++){
-		struct Key_value *p = func_map(temp,of);
+		struct Key_value p = func_map(temp,of);
 
-		cout<<p->key<<" value"<<p->count<<endl;	
+		cout<<p.key<<" value"<<*p.count<<endl;
 	}
-	
+
 	return 0;
 
 }
