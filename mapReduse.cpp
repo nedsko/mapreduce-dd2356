@@ -203,13 +203,15 @@ int main(int argc, char *argv[]){
 	}
 	}
 	//cout<<"size of send vetor "<<send_vector->size()<<endl;
+
 	MPI_Alltoall(send_vector->data(),re_global_max,mpi_key_value_type,recv_vector->data(),re_global_max,mpi_key_value_type,MPI_COMM_WORLD);
-	//cout<<"recev"<<endl;
+
+	cout<<"recev"<<endl;
 	if(rank!=MASTER){
 	int nr = 0;
 	for(auto it = recv_vector->begin(); it != recv_vector->end();++it){
 		nr++;
-		//cout<<"rank "<<rank<<" key "<<it->key<<endl;
+		cout<<"rank "<<rank<<" key "<<it->key<<endl;
 	}
 	//cout<<"antal recived "<<nr<<endl;
 	}
@@ -241,6 +243,7 @@ int main(int argc, char *argv[]){
 	cout<<"vector_send_size = "<<vector_send_size<<endl;
 	//MPI_Reduce(&vector_send_size, &re_max_map_size, 1,MPI_INT, MPI_MAX,MASTER, MPI_COMM_WORLD);
 	MPI_Allgather(&vector_send_size,1,MPI_INT,&size_recv,1,MPI_INT,MPI_COMM_WORLD);
+	
 	recv_displ[0] = 0;
 	int prev = 0;
 	for (int i = 1; i < num_ranks; i++)
@@ -255,6 +258,8 @@ int main(int argc, char *argv[]){
 			//cout<<"loop end"<<endl;
 		}
 	}
+
+	/*
 	MPI_Gatherv(send_vector_agg, vector_send_size, mpi_key_value_type,recv_vector_agg, size_recv,recv_displ, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
 	//TODO mpi type free and free alloced memory
 
@@ -266,6 +271,7 @@ int main(int argc, char *argv[]){
 			//cout<<"loop end"<<endl;
 		}
 	}
+	*/
 	MPI_Finalize();
 	return 0;
 }
