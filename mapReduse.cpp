@@ -57,16 +57,20 @@ int main(int argc, char *argv[]){
   MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_key_value_type);
   MPI_Type_commit(&mpi_key_value_type);
 
+  double init_start_time;
   /* START OF MAP PHASE */
+  if (rank == MASTER) {
+    init_start_time = mysecond();
+  }
   cout<<"Process "<<rank<<": Map Phase started!"<<endl;
   // Buffers for sending/receiving data from input file
 	char *send_read_file_data = new char[READ_SIZE*num_ranks-1];
 	char *re_file_data = new char[READ_SIZE];
 
 	int nr_of_reads; // Number of times the file will be read by MASTER
+  MPI_Offset file_size;
 	if(rank == MASTER){
 		MPI_File_open(MPI_COMM_SELF , FILE, MPI_MODE_RDONLY , MPI_INFO_NULL , &fh);
-		MPI_Offset file_size;
 		MPI_File_get_size(fh, &file_size);
 		nr_of_reads = (double)file_size/(double)(READ_SIZE*(num_ranks-1));
 	}
@@ -116,9 +120,11 @@ int main(int argc, char *argv[]){
 		}
 	}
   /* MAP PHASE DONE! */
+  //double map_phase_runtime = mysecond() - init_start_time;
   cout<<"Process "<<rank<<": Map Phase done!"<<endl;
 
   /* REDISTRIBUTION OF KEY VALUES */
+  //double redistribution_start_time = mysecond();
   cout<<"Process "<<rank<<": Redistribution Phase started!"<<endl;
   // Calculate the size of the biggest bucket. Used for padding later
 	int elements_in_bucket[num_ranks];
@@ -157,11 +163,12 @@ int main(int argc, char *argv[]){
 	}
   // Redistribute data using Alltoall
 	MPI_Alltoall(send_vector.data(),global_max_bucket_size,mpi_key_value_type,recv_vector.data(),global_max_bucket_size,mpi_key_value_type,MPI_COMM_WORLD);
-
+  //double redistribution_phase_runtime = mysecond() - redistribution_start_time;
   /* REDISTRIBUTION OF KEY VALUES DONE! */
   cout<<"Process "<<rank<<": Redistribution Phase done!"<<endl;
 
   /* START OF REDUCE PHASE */
+  //double reduce_start_time = mysecond();
   cout<<"Process "<<rank<<": Reduce Phase started!"<<endl;
   // Build map object from recv_vector and call reduce() on the data
 	map<string, Key_value> agg_key_value_map; // agg = aggregated
@@ -178,8 +185,10 @@ int main(int argc, char *argv[]){
 		}
 	}
   /* REDUCE PHASE DONE! */
+  //double reduce_phase_runtime = mysecond() - reduce_start_time;
   cout<<"Process "<<rank<<": Reduce Phase done!"<<endl;
   /* GATHER RESULTS PHASE */
+  //double gather_start_time = mysecond();
   cout<<"Process "<<rank<<": Gather Phase started!"<<endl;
   // Create and fill send vector with aggregated values
 	vector<Key_value> send_vector_agg;
@@ -199,35 +208,42 @@ int main(int argc, char *argv[]){
 	MPI_Gather(send_vector_agg.data(), max_send_vector_agg_size, mpi_key_value_type,recv_vector_agg.data(), max_send_vector_agg_size, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
 
   /* GATHER PHASE DONE! */
+  //double gather_phase_runtime = mysecond() - gather_start_time;
   cout<<"Process "<<rank<<": Gather Phase done!"<<endl;
   // TODO: Add measure time etc. and print measurements to file
   // TODO: Print results to file
 
 	if(rank == MASTER) {
+    double total_runtime = mysecond() - init_start_time;
     // Print results to result file
     MPI_File result_file;
-    char line_buffer[50+KEY_MAX_SIZE];
+    char line_buffer[100+KEY_MAX_SIZE];
     int line_length;
+    long unique_words = 0;
     MPI_File_open(MPI_COMM_SELF, RESULT_FILE, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &result_file);
     for (auto it = recv_vector_agg.begin();it != recv_vector_agg.end();++it) {
       if(it->count!=0){
         line_length = sprintf(line_buffer, "Word: %s, count: %ld\n", it->key, it->count);
         if (line_length > 0) {
           MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
+          unique_words++;
         }
       }
     }
+    line_length = sprintf(line_buffer, "Number of unique words: %ld", unique_words);
+    if (line_length > 0) {
+      MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
+    }
     MPI_File_close(&result_file);
-    /*
-		int c = 0;
-		for(auto it = recv_vector_agg.begin();it != recv_vector_agg.end();++it){
-			if(it->count!=0){
-				//cout<<"key = "<<it->key<<" value "<<it->count<<endl;
-				c++;
-			}
-		}
-		cout<<"nr of returned values "<<c<<endl;
-    */
+    // Print performance file
+    MPI_File performance_file;
+    MPI_File_open(MPI_COMM_SELF, PERFORMANCE_FILE, MPI_MODE_CREATE | MPI_MODE_APPEND | MPI_MODE_WRONLY, MPI_INFO_NULL, &performance_file);
+    line_length = sprintf(line_buffer, "File: %s, Size: %ld bytes, #Processes: %d, Runtime: %11.8f seconds\n",
+                            FILE, file_size, num_ranks, total_runtime);
+    if (line_length > 0) {
+      MPI_File_write(performance_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
+    }
+    MPI_File_close(&performance_file);
 	}
   // Free allocated memory
   MPI_Type_free(&mpi_key_value_type);
