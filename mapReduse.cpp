@@ -127,8 +127,8 @@ int main(int argc, char *argv[]){
 	MPI_Allreduce(&local_max_bucket_size, &global_max_bucket_size, 1,MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
   // Create, pad and redistribute data to all other processes
-	vector<Key_value> *send_vector = new vector<Key_value>;
-	vector<Key_value> *recv_vector = new vector<Key_value>(global_max_bucket_size*num_ranks);
+	vector<Key_value> send_vector;
+	vector<Key_value> recv_vector(global_max_bucket_size*num_ranks);
   // Fill and pad send_vector
   Key_value *temp_key_value = new Key_value;
 	temp_key_value->count = 0;
@@ -136,26 +136,26 @@ int main(int argc, char *argv[]){
 	for(int b = 0; b<num_ranks;b++){
 		int curent_size = 0;
 		for(auto it = buckets[b].begin(); it!=buckets[b].end();++it){
-			send_vector->push_back(it->second);
+			send_vector.push_back(it->second);
 			curent_size++;
 		}
 
-		
+
 		for(int i = curent_size;curent_size<global_max_bucket_size;curent_size++){
       // TODO: Move temp_key_value outside to prevent excessive string copying
-			
-			send_vector->push_back(*temp_key_value);
+
+			send_vector.push_back(*temp_key_value);
 		}
 	}
   // Redistribute data using Alltoall
-	MPI_Alltoall(send_vector->data(),global_max_bucket_size,mpi_key_value_type,recv_vector->data(),global_max_bucket_size,mpi_key_value_type,MPI_COMM_WORLD);
+	MPI_Alltoall(send_vector.data(),global_max_bucket_size,mpi_key_value_type,recv_vector.data(),global_max_bucket_size,mpi_key_value_type,MPI_COMM_WORLD);
 
   /* REDISTRIBUTION OF KEY VALUES DONE! */
 
   /* START OF REDUCE PHASE */
   // Build map object from recv_vector and call reduce() on the data
 	map<string, Key_value> agg_key_value_map; // agg = aggregated
-	for(auto it = recv_vector->begin(); it != recv_vector->end();++it){
+	for(auto it = recv_vector.begin(); it != recv_vector.end();++it){
 		string key_test = it->key;
     // Padding, don't include
 		if(it->count == 0)
@@ -170,21 +170,21 @@ int main(int argc, char *argv[]){
   /* REDUCE PHASE DONE! */
   /* GATHER RESULTS PHASE */
   // Create and fill send vector with aggregated values
-	vector<Key_value> *send_vector_agg = new vector<Key_value>;
+	vector<Key_value> send_vector_agg;
 	for(auto it = agg_key_value_map.begin();it != agg_key_value_map.end();++it){
-		send_vector_agg->push_back(it->second);
+		send_vector_agg.push_back(it->second);
 	}
   // Calculate size of biggest send_vector to use for padding
-	int local_send_vector_agg_size = send_vector_agg->size();
+	int local_send_vector_agg_size = send_vector_agg.size();
 	int max_send_vector_agg_size;
 	MPI_Allreduce(&local_send_vector_agg_size, &max_send_vector_agg_size, 1,MPI_INT, MPI_MAX, MPI_COMM_WORLD);
   // Add padding
 	for(int i = local_send_vector_agg_size;i<max_send_vector_agg_size;i++){
-		send_vector_agg->push_back(*temp_key_value);
+		send_vector_agg.push_back(*temp_key_value);
 	}
-	vector<Key_value> *recv_vector_agg = new vector<Key_value>(max_send_vector_agg_size*num_ranks);
+	vector<Key_value> recv_vector_agg(max_send_vector_agg_size*num_ranks);
   // Gather results to MASTER
-	MPI_Gather(send_vector_agg->data(), max_send_vector_agg_size, mpi_key_value_type,recv_vector_agg->data(), max_send_vector_agg_size, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
+	MPI_Gather(send_vector_agg.data(), max_send_vector_agg_size, mpi_key_value_type,recv_vector_agg.data(), max_send_vector_agg_size, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
 
   /* GATHER PHASE DONE! */
 	// TODO FREE KEY VALUES inside objects when they aren't needed anymore
@@ -193,9 +193,9 @@ int main(int argc, char *argv[]){
 
 	if(rank == MASTER){
 		int c = 0;
-		//cout<<"gatherd size "<<recv_vector_agg->size()<<endl;
+		//cout<<"gatherd size "<<recv_vector_agg.size()<<endl;
 		cout<<endl<<endl;
-		for(auto it = recv_vector_agg->begin();it != recv_vector_agg->end();++it){
+		for(auto it = recv_vector_agg.begin();it != recv_vector_agg.end();++it){
 			if(it->count!=0){
 				//cout<<"key = "<<it->key<<" value "<<it->count<<endl;
 				c++;
@@ -208,24 +208,12 @@ int main(int argc, char *argv[]){
 	}
   // Free allocated memory
   MPI_Type_free(&mpi_key_value_type);
-
-  for (size_t i = 0; i < buckets.size(); i++) {
-    for(auto it = buckets[i].begin(); it!=buckets[i].end();++it){
-      //delete it->second;
-    }
-	}
   delete[] send_read_file_data;
   delete[] re_file_data;
   delete[] sendCount;
   delete[] displ;
   delete temp_key_value;
-  delete send_vector;
-  delete recv_vector;
-  delete send_vector_agg;
-  delete recv_vector_agg;
-
-
-
+  
 	MPI_Finalize();
 	return 0;
 }
