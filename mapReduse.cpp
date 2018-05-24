@@ -7,8 +7,9 @@
 #include <vector>
 #include <map>
 #include <cstdint>
-#define FILE "wikipedia_test_small.txt"
+#define FILE "wikipedia_test_large.txt"
 #define MASTER 0
+
 #define NULL_STRING "fail\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
 
 
@@ -59,8 +60,8 @@ int main(int argc, char *argv[]){
     MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_key_value_type);
     MPI_Type_commit(&mpi_key_value_type);
 	
-	char *send_buf = new char[64*num_ranks-1];
-	char *re_buf = new char[64];
+	char *send_buf = new char[READ_SIZE*num_ranks-1];
+	char *re_buf = new char[READ_SIZE];
 
 	int nr_of_reads;
 	if(rank == MASTER){
@@ -68,23 +69,23 @@ int main(int argc, char *argv[]){
 		MPI_Offset file_size;
 		MPI_File_get_size(fh, &file_size);
 		//cout<<"file_size"<<file_size<<endl;
-		nr_of_reads = (double)file_size/(double)(64*(num_ranks-1));
+		nr_of_reads = (double)file_size/(double)(READ_SIZE*(num_ranks-1));
 		
 	}
 	MPI_Bcast(&nr_of_reads, 1, MPI_INT, MASTER, MPI_COMM_WORLD);
 	
-	//sendcount = 0 fore master 64 fore the rest
+	//sendcount = 0 fore master READ_SIZE fore the rest
 	int *sendCount = new int[num_ranks];
-	fill(sendCount,sendCount+num_ranks,64);
+	fill(sendCount,sendCount+num_ranks,READ_SIZE);
 	sendCount[0] = 0;
 	//index zero and one are 0 maseter dont get any data
 	int *displ = new int[num_ranks]{0};
 	for(int k = 1; k<num_ranks;k++){
-		displ[k] = (k-1)*64; 
+		displ[k] = (k-1)*READ_SIZE; 
 	}
 	string key_33;
 	//master recives 0 data
-	int recvcount = (rank==MASTER) ? 0:64;
+	int recvcount = (rank==MASTER) ? 0:READ_SIZE;
 	cout<<"nr of reads "<<nr_of_reads<<endl;
 	//TODO add to heap
 	vector<map<string, Key_value>> buckets(num_ranks);
@@ -92,7 +93,7 @@ int main(int argc, char *argv[]){
 	for(int i = 0; i<nr_of_reads;i++){
 
 		if(rank == MASTER){
-			MPI_File_read(fh,send_buf, 64*(num_ranks-1),MPI_BYTE, MPI_STATUS_IGNORE);
+			MPI_File_read(fh,send_buf, READ_SIZE*(num_ranks-1),MPI_BYTE, MPI_STATUS_IGNORE);
 			
 		}
 		
@@ -103,7 +104,7 @@ int main(int argc, char *argv[]){
 			int bucket_index;
 			string key;
 			
-			while(offset<64){
+			while(offset<READ_SIZE){
 
 				Key_value p = func_map(re_buf,offset);
 				/*
@@ -222,19 +223,20 @@ int main(int argc, char *argv[]){
 		
 	}
 	vector<Key_value> *send_vector_agg = new vector<Key_value>;
-	vector<Key_value> *recv_vector_agg = new vector<Key_value>;
+	//vector<Key_value> *recv_vector_agg = new vector<Key_value>;
 	for(auto it = agg_key_value_map.begin();it != agg_key_value_map.end();++it){
 		//cout<<"key = "<<it->second.key<<" value "<<it->second.count<<endl;
 		send_vector_agg->push_back(it->second);
 	}
 	int re_max_map_size;
 	int vector_send_size = send_vector_agg->size();
-	int size_recv[num_ranks];
+	
+	/*int size_recv[num_ranks];
 	int recv_displ[num_ranks];
 	
 	//cout<<"vector_send_size = "<<vector_send_size<<endl;
 	//MPI_Reduce(&vector_send_size, &re_max_map_size, 1,MPI_INT, MPI_MAX,MASTER, MPI_COMM_WORLD);
-	MPI_Allgather(&vector_send_size,1,MPI_INT,&size_recv,1,MPI_INT,MPI_COMM_WORLD);
+	//MPI_Allgather(&vector_send_size,1,MPI_INT,&size_recv,1,MPI_INT,MPI_COMM_WORLD);
 	
 	recv_displ[0] = 0;
 	int prev = 0;
@@ -243,39 +245,59 @@ int main(int argc, char *argv[]){
 		recv_displ[i] = size_recv[i-1]+prev;
 		prev = recv_displ[i];
 	}
-	/*
+	
 	for(auto it = send_vector_agg->begin();it != send_vector_agg->end();++it){
 		
-		cout<<"key = "<<it->key<<" value "<<it->count<<"rank ="<<rank<<endl;
+		//cout<<"key = "<<it->key<<" value "<<it->count<<"rank ="<<rank<<endl;
 		
 	}
 	*/
 	int my_send_vector_agg_size = send_vector_agg->size();
 	int max_send_vector_agg_size; 
 	MPI_Allreduce(&my_send_vector_agg_size, &max_send_vector_agg_size, 1,MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+	//TODO move empty key_value out of loop
 	for(int i = my_send_vector_agg_size;i<max_send_vector_agg_size;i++){
+		//cout<<"added null string"<<"rank "<<rank<<endl;
 		Key_value *temp_key_value = new Key_value;
 		temp_key_value->count = 0;
 		strncpy(temp_key_value->key, NULL_STRING, 30);
 		send_vector_agg->push_back(*temp_key_value);
 	}
-	cout<<"send_vector_agg size "<<send_vector_agg->size()<<"rank"<<rank<<endl;
-	cout<<"max_send_vector_agg_size "<<max_send_vector_agg_size<<endl;
-	MPI_Gather(send_vector_agg, max_send_vector_agg_size, mpi_key_value_type,recv_vector_agg, max_send_vector_agg_size, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
-	cout<<"gather ok? rank "<<rank<<endl;
+
+	for(auto it = send_vector_agg->begin();it != send_vector_agg->end();++it){
+		
+		//cout<<"key = "<<it->key<<" value "<<it->count<<"rank ="<<rank<<endl;
+		
+	}
+	//cout<<"send_vector_agg size "<<send_vector_agg->size()<<"rank"<<rank<<endl;
+	//cout<<endl;
+	//cout<<"max_send_vector_agg_size "<<max_send_vector_agg_size<<endl;
+	//cout<<"recv_vector_agg size "<<recv_vector_agg->size()<<endl;
+	//cout<<"1 send size"<<my_send_vector_agg_size<<" rank "<<rank<<endl;
+	vector<Key_value> *recv_vector_agg = new vector<Key_value>(max_send_vector_agg_size*num_ranks);
+	MPI_Gather(send_vector_agg->data(), max_send_vector_agg_size, mpi_key_value_type,recv_vector_agg->data(), max_send_vector_agg_size, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
+	
+	//cout<<"gather ok? rank "<<rank<<endl;
 	
 	//MPI_Gatherv(send_vector_agg, vector_send_size, mpi_key_value_type,recv_vector_agg, size_recv,recv_displ, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
 	//TODO mpi type free and free alloced memory
 	
 	if(rank == MASTER){
+		int c = 0;
+		//cout<<"gatherd size "<<recv_vector_agg->size()<<endl;
 		cout<<endl<<endl;
 		for(auto it = recv_vector_agg->begin();it != recv_vector_agg->end();++it){
+			if(it->count!=0){
+				//cout<<"key = "<<it->key<<" value "<<it->count<<endl;
+				c++;
+			}
 			//cout<<"loop start"<<endl;
-			cout<<"key = "<<it->key<<" value "<<it->count<<endl;
+			//
 			//cout<<"loop end"<<endl;
 		}
+		cout<<"nr of returned values "<<c<<endl;
 	}
 	
-	MPI_Finalize();
+	//MPI_Finalize();
 	return 0;
 }

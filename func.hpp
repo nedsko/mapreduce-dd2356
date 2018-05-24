@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <sstream>
 #define KEY_MAX_SIZE 30
+#define READ_SIZE 4096
 struct Key_value
 {
 	long count;
