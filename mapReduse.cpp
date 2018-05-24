@@ -15,6 +15,7 @@
 //wikipedia_test_small.txt number_test.txt
 using namespace std;
 
+
 // Hash function used to decide bucket for given word
 #define SEED_LENGTH 65
 const char key_seed[SEED_LENGTH] = "b4967483cf3fa84a3a233208c129471ebc49bdd3176c8fb7a2c50720eb349461";
@@ -129,17 +130,20 @@ int main(int argc, char *argv[]){
 	vector<Key_value> *send_vector = new vector<Key_value>;
 	vector<Key_value> *recv_vector = new vector<Key_value>(global_max_bucket_size*num_ranks);
   // Fill and pad send_vector
+  Key_value *temp_key_value = new Key_value;
+	temp_key_value->count = 0;
+	strncpy(temp_key_value->key, NULL_STRING, 30);
 	for(int b = 0; b<num_ranks;b++){
 		int curent_size = 0;
 		for(auto it = buckets[b].begin(); it!=buckets[b].end();++it){
 			send_vector->push_back(it->second);
 			curent_size++;
 		}
+
+		
 		for(int i = curent_size;curent_size<global_max_bucket_size;curent_size++){
       // TODO: Move temp_key_value outside to prevent excessive string copying
-			Key_value *temp_key_value = new Key_value;
-			temp_key_value->count = 0;
-			strncpy(temp_key_value->key, NULL_STRING, 30);
+			
 			send_vector->push_back(*temp_key_value);
 		}
 	}
@@ -176,10 +180,6 @@ int main(int argc, char *argv[]){
 	MPI_Allreduce(&local_send_vector_agg_size, &max_send_vector_agg_size, 1,MPI_INT, MPI_MAX, MPI_COMM_WORLD);
   // Add padding
 	for(int i = local_send_vector_agg_size;i<max_send_vector_agg_size;i++){
-    //TODO move empty key_value out of loop
-		Key_value *temp_key_value = new Key_value;
-		temp_key_value->count = 0;
-		strncpy(temp_key_value->key, NULL_STRING, 30);
 		send_vector_agg->push_back(*temp_key_value);
 	}
 	vector<Key_value> *recv_vector_agg = new vector<Key_value>(max_send_vector_agg_size*num_ranks);
@@ -208,14 +208,23 @@ int main(int argc, char *argv[]){
 	}
   // Free allocated memory
   MPI_Type_free(&mpi_key_value_type);
+
+  for (size_t i = 0; i < buckets.size(); i++) {
+    for(auto it = buckets[i].begin(); it!=buckets[i].end();++it){
+      //delete it->second;
+    }
+	}
   delete[] send_read_file_data;
   delete[] re_file_data;
   delete[] sendCount;
   delete[] displ;
+  delete temp_key_value;
   delete send_vector;
   delete recv_vector;
   delete send_vector_agg;
   delete recv_vector_agg;
+
+
 
 	MPI_Finalize();
 	return 0;

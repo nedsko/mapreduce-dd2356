@@ -10,47 +10,47 @@
  */
 Key_value func_map(char *buf,long &offset){
 	std::stringstream ss;
-	struct Key_value *p = new Key_value;
+	struct Key_value p;
 	int char_count = 0;
 	while(true){
 		// First char is a digit so only digits should follow
 		if(isdigit(buf[offset])){
 			while(isdigit(buf[offset])&&char_count<KEY_MAX_SIZE){
-				p->key[char_count]=buf[offset];
+				p.key[char_count]=buf[offset];
 				char_count++;
 				offset++;
 			}
 			while(char_count<KEY_MAX_SIZE){
-				p->key[char_count]='\0';
+				p.key[char_count]='\0';
 				char_count++;
 			}
-			p->count=1;
-			return *p;
+			p.count=1;
+			return p;
 
 		}
 		// First char is alphabetic so only alphabetic chars should follow
 		else if(isalpha(buf[offset])){
 			while(isalpha(buf[offset])&&char_count<KEY_MAX_SIZE){
-				p->key[char_count]=buf[offset];
+				p.key[char_count]=buf[offset];
 				char_count++;
 				offset++;
 			}
 			while(char_count<KEY_MAX_SIZE){
-				p->key[char_count]='\0';
+				p.key[char_count]='\0';
 				char_count++;
 			}
-			p->count=1;
-			return *p;
+			p.count=1;
+			return p;
 		}
 		offset++; // No valid char found so move to next
 
 		if(offset>READ_SIZE){
 			while(char_count<KEY_MAX_SIZE){
-				p->key[char_count]='\0';
+				p.key[char_count]='\0';
 				char_count++;
 			}
-			p->count=0;
-			return *p;
+			p.count=0;
+			return p;
 		}
 	}
 }
