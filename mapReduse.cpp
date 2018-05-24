@@ -36,6 +36,13 @@ int calculateDestRank(const char *word, int length, int num_ranks)
     return (int)(hash % (uint64_t)num_ranks);
 }
 
+void printVectorMap(vector<map<string, Key_value>> values) {
+  for (size_t i = 0; i < values.size(); i++) {
+    for(auto it = values[i].begin(); it!=values[i].end();++it){
+      cout<<"Bucket = "<<i<<", map-key = "<<it->first<<", value = "<<it->second.count<<endl;
+    }
+  }
+}
 
 
 int main(int argc, char *argv[]){
@@ -46,6 +53,8 @@ int main(int argc, char *argv[]){
 	MPI_Comm_size(MPI_COMM_WORLD, &num_ranks);
 
 	MPI_File fh;
+
+  cout<<"START OF PROGRAM, NUMBER OF PROCESSES IS "<<num_ranks<<endl;
 
 	const int nitems=2;
 	int blocklengths[2] = {1,30};
@@ -101,38 +110,45 @@ int main(int argc, char *argv[]){
 			//do slave work
 			long offset = 0;
 			int bucket_index;
-			string key;
+			string key_test;
+      //struct Key_value res(1, NULL_STRING);
 			while(offset<64){
 
 				Key_value p = func_map(re_buf,offset);
-				string key_test = p.key;
+				key_test = p.key;
 				//cout<<"key="<<p.key<<endl;
-				if(*p.count == 0){
+				if(p.count == 0){
 					break;
 				}
+
 				bucket_index = calculateDestRank(p.key,KEY_MAX_SIZE,num_ranks);
 				//cout<<"antal ggr ="<<buckets[bucket_index].count(key_test)<<" key="<<p.key<<endl;
 				//cout<<endl;
 				if(buckets[bucket_index].count(key_test)==0){
 					//add
 					//cout<<"added "<<p.key<<" to map"<<endl;
-					buckets[bucket_index][key_test] = p;
+          //buckets[bucket_index][key_test] = p;
+					buckets[bucket_index].insert(pair<string, Key_value>(key_test, p));
 				}
 				else{
 					//increas value
 
-					*buckets[bucket_index][key_test].count += 1;
+					buckets[bucket_index][key_test].count++;
 					//cout<<"increas value to "<<buckets[bucket_index][p.key].count<<endl;
 				}
 			}
 		}
   }
-/*
+  cout<<"fuck: "<<buckets[0]["Cat"].key<<endl;
+  cout<<"Process "<<rank<<": Map Phase done!"<<endl;
+  printVectorMap(buckets);
+
 	int nr_in_bucket[num_ranks];
 	int total_bucket_size = 0;
 	int max = 0;
 	int re_global_max = 0;
 	int send_displ[num_ranks];
+  //cout<<"Process "<<rank<<": Start max calc"<<endl;
 	for(int k = 0; k<num_ranks;k++){
 		nr_in_bucket[k] = buckets[k].size();
 		//cout<<"nr in bucket rank = "<<rank<<" nr = "<<nr_in_bucket[k]<<endl;
@@ -140,47 +156,44 @@ int main(int argc, char *argv[]){
 			max = nr_in_bucket[k];
 		total_bucket_size += buckets[k].size();
 	}
-
+  cout<<"Process "<<rank<<": local max is "<<max<<endl;
 	send_displ[0] = 0;
 	int prev_send_disp = 0;
 	for(int i = 1; i<num_ranks;i++){
-		send_displ[i] = sizeof(Key_value)*nr_in_bucket[i-1]+prev_send_disp;
+		send_displ[i] = sizeof(struct Key_value)*nr_in_bucket[i-1]+prev_send_disp;
 		prev_send_disp = send_displ[i];
 	}
 	//get max recive count
+  cout<<"Process "<<rank<<": Before reduce"<<endl;
 	MPI_Allreduce(&max, &re_global_max, 1,MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  cout<<"Process "<<rank<<": global max is "<<re_global_max<<endl;
+	vector<struct Key_value> send_vector;
+	vector<struct Key_value> recv_vector (re_global_max*num_ranks);
 
-	//cout<<"max size = "<<re_global_max<<endl;
-	vector<Key_value> *send_vector = new vector<Key_value>;
-	vector<Key_value> *recv_vector = new vector<Key_value>(re_global_max*num_ranks);
+  cout<<"Process "<<rank<<": Start filling send_vector"<<endl;
+  if (rank != MASTER) {
+  	for(int b = 0; b<num_ranks;b++){
+  		int curent_size = 0;
+  		for(auto it = buckets[b].begin(); it!=buckets[b].end();++it){
+  			send_vector.push_back(it->second);
+  			//cout<<"added good value "<<it->second.key<<endl;
+  			curent_size++;
+  		}
+  		for(int i = curent_size;curent_size<re_global_max;curent_size++){
+  			struct Key_value temp_key_value;
+  			temp_key_value.count = 0;
+  			strncpy(temp_key_value.key, NULL_STRING, 30);
 
-	for(int b = 0; b<num_ranks;b++){
-		int curent_size = 0;
-		for(auto it = buckets[b].begin(); it!=buckets[b].end();++it){
-			send_vector->push_back(it->second);
-			//cout<<"added good value"<<endl;
-			curent_size++;
-		}
-		for(int i = curent_size;curent_size<re_global_max;curent_size++){
-			Key_value *temp_key_value = new Key_value;
-			temp_key_value->count = 0;
-			strncpy(temp_key_value->key, NULL_STRING, 30);
-
-			send_vector->push_back(*temp_key_value);
-		}
-	}
-	if(rank!=MASTER){
-	for(auto it = send_vector->begin(); it != send_vector->end();++it){
-
-		//cout<<"rank "<<rank<<" key "<<it->key<<endl;
-	}
-	}
-	//cout<<"size of send vetor "<<send_vector->size()<<endl;
-	MPI_Alltoall(send_vector->data(),re_global_max,mpi_key_value_type,recv_vector->data(),re_global_max,mpi_key_value_type,MPI_COMM_WORLD);
+  			send_vector.push_back(temp_key_value);
+  		}
+  	}
+  }
+  cout<<"Process "<<rank<<": send_vector created"<<endl;
+	MPI_Alltoall(send_vector.data(),re_global_max,mpi_key_value_type,recv_vector.data(),re_global_max,mpi_key_value_type,MPI_COMM_WORLD);
 	//cout<<"recev"<<endl;
 	if(rank!=MASTER){
 	int nr = 0;
-	for(auto it = recv_vector->begin(); it != recv_vector->end();++it){
+	for(auto it = recv_vector.begin(); it != recv_vector.end();++it){
 		nr++;
 		//cout<<"rank "<<rank<<" key "<<it->key<<endl;
 	}
@@ -188,7 +201,7 @@ int main(int argc, char *argv[]){
 	}
 
 	map<string, Key_value> agg_key_value_map;
-	for(auto it = recv_vector->begin(); it != recv_vector->end();++it){
+	for(auto it = recv_vector.begin(); it != recv_vector.end();++it){
 		string key_test = it->key;
 		if(it->count == 0)
 			continue;
@@ -200,14 +213,14 @@ int main(int argc, char *argv[]){
 		}
 
 	}
-	vector<Key_value> *send_vector_agg = new vector<Key_value>;
-	vector<Key_value> *recv_vector_agg = new vector<Key_value>;
+	vector<struct Key_value> send_vector_agg;
+	vector<struct Key_value> recv_vector_agg;
 	for(auto it = agg_key_value_map.begin();it != agg_key_value_map.end();++it){
 		//cout<<"key = "<<it->second.key<<" value "<<it->second.count<<endl;
-		send_vector_agg->push_back(it->second);
+		send_vector_agg.push_back(it->second);
 	}
 	int re_max_map_size;
-	int vector_send_size = send_vector_agg->size();
+	int vector_send_size = send_vector_agg.size();
 	int size_recv[num_ranks];
 	int recv_displ[num_ranks];
 
@@ -222,12 +235,13 @@ int main(int argc, char *argv[]){
 		prev = recv_displ[i];
 	}
 	if(true){
-	for(auto it = send_vector_agg->begin();it != send_vector_agg->end();++it){
+	for(auto it = send_vector_agg.begin();it != send_vector_agg.end();++it){
 			//cout<<"loop start"<<endl;
 			cout<<"key = "<<it->key<<" value "<<it->count<<"rank ="<<rank<<endl;
 			//cout<<"loop end"<<endl;
 		}
 	}
+/*
 	MPI_Gatherv(send_vector_agg, vector_send_size, mpi_key_value_type,recv_vector_agg, size_recv,recv_displ, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
 	//TODO mpi type free and free alloced memory
 
@@ -240,8 +254,13 @@ int main(int argc, char *argv[]){
 		}
 	}
 */
+/*
+  delete[] send_buf;
+  delete[] re_buf;
+  delete[] sendCount;
+  delete[] displ;
+*/
   cout<<"hej"<<endl;
-  MPI_Type_free(&mpi_key_value_type);
 	MPI_Finalize();
 	return 0;
 }
