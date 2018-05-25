@@ -64,7 +64,7 @@ int main(int argc, char *argv[]){
   }
   cout<<"Process "<<rank<<": Map Phase started!"<<endl;
   // Buffers for sending/receiving data from input file
-	char *send_read_file_data = new char[READ_SIZE*num_ranks-1];
+	char *send_read_file_data = new char[(long long)READ_SIZE*num_ranks-1];
 	char *re_file_data = new char[READ_SIZE];
 
 	int nr_of_reads; // Number of times the file will be read by MASTER
@@ -82,13 +82,14 @@ int main(int argc, char *argv[]){
 	fill(sendCount,sendCount+num_ranks,READ_SIZE);
   // Master does not receive any data from file so sendCount[0] = 0 and displ[0:1] = 0
 	sendCount[0] = 0;
-	int *displ = new int[num_ranks]{0};
+	int *displ = new int[num_ranks];
+  displ[0] = 0;
 	for(int k = 1; k<num_ranks;k++){
 		displ[k] = (k-1)*READ_SIZE;
 	}
 	int recvcount = (rank==MASTER) ? 0:READ_SIZE;
   // Vector used to separate <key,value> pairs into buckets.
-	vector<map<string, Key_value>> buckets(num_ranks);
+	vector<map<string, Key_value> > buckets(num_ranks);
 
 	for(int i = 0; i<nr_of_reads;i++){
     // Only master reads from file
@@ -149,7 +150,7 @@ int main(int argc, char *argv[]){
 	strncpy(temp_key_value->key, NULL_STRING, 30);
 	for(int b = 0; b<num_ranks;b++){
 		int curent_size = 0;
-		for(auto it = buckets[b].begin(); it!=buckets[b].end();++it){
+		for(map<string, Key_value>::iterator it = buckets[b].begin(); it!=buckets[b].end();++it){
 			send_vector.push_back(it->second);
 			curent_size++;
 		}
@@ -172,7 +173,7 @@ int main(int argc, char *argv[]){
   cout<<"Process "<<rank<<": Reduce Phase started!"<<endl;
   // Build map object from recv_vector and call reduce() on the data
 	map<string, Key_value> agg_key_value_map; // agg = aggregated
-	for(auto it = recv_vector.begin(); it != recv_vector.end();++it){
+	for(vector<Key_value>::iterator it = recv_vector.begin(); it != recv_vector.end();++it){
 		string key_test = it->key;
     // Padding, don't include
 		if(it->count == 0)
@@ -192,7 +193,7 @@ int main(int argc, char *argv[]){
   cout<<"Process "<<rank<<": Gather Phase started!"<<endl;
   // Create and fill send vector with aggregated values
 	vector<Key_value> send_vector_agg;
-	for(auto it = agg_key_value_map.begin();it != agg_key_value_map.end();++it){
+	for(map<string, Key_value>::iterator  it = agg_key_value_map.begin();it != agg_key_value_map.end();++it){
 		send_vector_agg.push_back(it->second);
 	}
   // Calculate size of biggest send_vector to use for padding
@@ -221,7 +222,7 @@ int main(int argc, char *argv[]){
     int line_length;
     long unique_words = 0;
     MPI_File_open(MPI_COMM_SELF, RESULT_FILE, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &result_file);
-    for (auto it = recv_vector_agg.begin();it != recv_vector_agg.end();++it) {
+    for (	vector<Key_value>::iterator it = recv_vector_agg.begin();it != recv_vector_agg.end();++it) {
       if(it->count!=0){
         line_length = sprintf(line_buffer, "Word: %s, count: %ld\n", it->key, it->count);
         if (line_length > 0) {

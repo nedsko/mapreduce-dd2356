@@ -7,7 +7,7 @@ path = /home/c/mhpc/mapReduse
 TARGET = mapReduse
 
 all: func.o
-	$(CC) $(TARGET).cpp -o $(TARGET).out func.o -std=c++11
+	$(CC) $(TARGET).cpp -o $(TARGET).out func.o
 
 
 func.o: func.cpp func.hpp
@@ -19,4 +19,4 @@ run:
 	mpirun -n 2 ./$(TARGET).out
 
 test: func.o
-	g++ -I$(shell pwd) test.cpp -o test.out func.o -std=c++11
+	g++ -I$(shell pwd) test.cpp -o test.out func.o
