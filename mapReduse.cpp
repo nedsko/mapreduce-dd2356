@@ -228,7 +228,7 @@ int main(int argc, char *argv[]){
     int line_length;
     long unique_words = 0;
     MPI_File_open(MPI_COMM_SELF, RESULT_FILE, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &result_file);
-    for (	vector<Key_value>::iterator it = recv_vector_agg.begin();it != recv_vector_agg.end();++it) {
+    for (vector<Key_value>::iterator it = recv_vector_agg.begin();it != recv_vector_agg.end();++it) {
       if(it->count!=0){
         line_length = sprintf(line_buffer, "Word: %s, count: %ld\n", it->key, it->count);
         if (line_length > 0) {
@@ -245,7 +245,7 @@ int main(int argc, char *argv[]){
     // Print performance file
     MPI_File performance_file;
     MPI_File_open(MPI_COMM_SELF, PERFORMANCE_FILE, MPI_MODE_CREATE | MPI_MODE_APPEND | MPI_MODE_WRONLY, MPI_INFO_NULL, &performance_file);
-    line_length = sprintf(line_buffer, "File: %s, Size: %lld bytes, #Processes: %ld, Runtime: %11.8f seconds", FILE, file_size, num_ranks, total_runtime);
+    line_length = sprintf(line_buffer, "File: %s, Size: %lld bytes, #Processes: %ld, Runtime: %11.8f seconds\n", FILE, file_size, num_ranks, total_runtime);
     if (line_length > 0) {
       MPI_File_write(performance_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
     }
