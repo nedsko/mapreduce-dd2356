@@ -88,7 +88,7 @@ int main(int argc, char *argv[]){
 
 	long long nr_of_reads; // Number of times the file will be read by MASTER
   MPI_Offset file_size;
-	//if(rank == MASTER){
+	
 	MPI_File_open(MPI_COMM_WORLD , FILE, MPI_MODE_RDONLY , MPI_INFO_NULL , &fh);
 	MPI_File_set_view(fh, disp, MPI_BYTE, filetype, "native", MPI_INFO_NULL);
 	MPI_File_get_size(fh, &file_size);
@@ -106,8 +106,8 @@ int main(int argc, char *argv[]){
 
 	for(long long i = 0; i<nr_of_reads;i++){
     // Only master reads from file
-		
-		MPI_File_read(fh, re_file_data, READ_SIZE, MPI_BYTE, MPI_STATUS_IGNORE);
+		//read_all or read 
+		MPI_File_read_all(fh, re_file_data, READ_SIZE, MPI_BYTE, MPI_STATUS_IGNORE);
 		
     // Scatter read data to slave processes
     // Repeatedly call Map() on received buffer until all data has been processed
