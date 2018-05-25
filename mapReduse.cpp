@@ -211,7 +211,7 @@ int main(int argc, char *argv[]){
     int line_length;
     long unique_words = 0;
     MPI_File_open(MPI_COMM_SELF, RESULT_FILE, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &result_file);
-    for (	vector<Key_value>::iterator it = recv_vector_agg.begin();it != recv_vector_agg.end();++it) {
+    for (vector<Key_value>::iterator it = recv_vector_agg.begin();it != recv_vector_agg.end();++it) {
       if(it->count!=0){
         line_length = sprintf(line_buffer, "Word: %s, count: %ld\n", it->key, it->count);
         if (line_length > 0) {
