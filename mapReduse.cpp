@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <sys/time.h>
 
-#define FILE "wikipedia_test_small.txt" // Input file
+#define FILE "/cfs/klemming/scratch/s/sergiorg/DD2356/input/wikipedia_20GB.txt" // Input file
 #define MASTER 0
 #define NULL_STRING "fail\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
 #define RESULT_FILE "mapreduce_results.txt"
@@ -64,19 +64,19 @@ int main(int argc, char *argv[]){
   }
   cout<<"Process "<<rank<<": Map Phase started!"<<endl;
   // Buffers for sending/receiving data from input file
-	char *send_read_file_data = new char[(long long)READ_SIZE*num_ranks-1];
+	char *send_read_file_data = new char[(long long)READ_SIZE*(num_ranks-1)];
 	char *re_file_data = new char[READ_SIZE];
 
-	int nr_of_reads; // Number of times the file will be read by MASTER
+	long long nr_of_reads; // Number of times the file will be read by MASTER
   MPI_Offset file_size;
 	if(rank == MASTER){
 		MPI_File_open(MPI_COMM_SELF , FILE, MPI_MODE_RDONLY , MPI_INFO_NULL , &fh);
 		MPI_File_get_size(fh, &file_size);
-		nr_of_reads = (double)file_size/(double)(READ_SIZE*(num_ranks-1));
+		nr_of_reads = file_size/(long long)(READ_SIZE*(num_ranks-1));
 	}
   // Broadcast nr_of_reads to all processes
-	MPI_Bcast(&nr_of_reads, 1, MPI_INT, MASTER, MPI_COMM_WORLD);
-
+	MPI_Bcast(&nr_of_reads, 1, MPI_LONG_LONG_INT, MASTER, MPI_COMM_WORLD);
+  cout<<"NUMBER OF READS: "<<nr_of_reads<<endl;
   // Prepare send to slave processes
 	int *sendCount = new int[num_ranks];
 	fill(sendCount,sendCount+num_ranks,READ_SIZE);
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]){
   // Vector used to separate <key,value> pairs into buckets.
 	vector<map<string, Key_value> > buckets(num_ranks);
 
-	for(int i = 0; i<nr_of_reads;i++){
+	for(long long i = 0; i<nr_of_reads;i++){
     // Only master reads from file
 		if(rank == MASTER){
 			MPI_File_read(fh,send_read_file_data, READ_SIZE*(num_ranks-1),MPI_BYTE, MPI_STATUS_IGNORE);
@@ -128,10 +128,10 @@ int main(int argc, char *argv[]){
   //double redistribution_start_time = mysecond();
   cout<<"Process "<<rank<<": Redistribution Phase started!"<<endl;
   // Calculate the size of the biggest bucket. Used for padding later
-	int elements_in_bucket[num_ranks];
-	int total_bucket_size = 0;
-	int local_max_bucket_size = 0;
-	int global_max_bucket_size = 0;
+	long elements_in_bucket[num_ranks];
+	long total_bucket_size = 0;
+	long local_max_bucket_size = 0;
+	long global_max_bucket_size = 0;
 	for(int k = 0; k<num_ranks;k++){
 		elements_in_bucket[k] = buckets[k].size();
 		if(local_max_bucket_size<elements_in_bucket[k])
@@ -139,7 +139,7 @@ int main(int argc, char *argv[]){
 		total_bucket_size += buckets[k].size();
 	}
   // Use Allreduce to calculate and share global_max_bucket_size
-	MPI_Allreduce(&local_max_bucket_size, &global_max_bucket_size, 1,MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+	MPI_Allreduce(&local_max_bucket_size, &global_max_bucket_size, 1,MPI_LONG, MPI_MAX, MPI_COMM_WORLD);
 
   // Create, pad and redistribute data to all other processes
 	vector<Key_value> send_vector;
@@ -154,11 +154,7 @@ int main(int argc, char *argv[]){
 			send_vector.push_back(it->second);
 			curent_size++;
 		}
-
-
-		for(int i = curent_size;curent_size<global_max_bucket_size;curent_size++){
-      // TODO: Move temp_key_value outside to prevent excessive string copying
-
+		for(long i = curent_size;curent_size<global_max_bucket_size;curent_size++){
 			send_vector.push_back(*temp_key_value);
 		}
 	}
@@ -197,11 +193,11 @@ int main(int argc, char *argv[]){
 		send_vector_agg.push_back(it->second);
 	}
   // Calculate size of biggest send_vector to use for padding
-	int local_send_vector_agg_size = send_vector_agg.size();
-	int max_send_vector_agg_size;
-	MPI_Allreduce(&local_send_vector_agg_size, &max_send_vector_agg_size, 1,MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+	long local_send_vector_agg_size = send_vector_agg.size();
+	long max_send_vector_agg_size;
+	MPI_Allreduce(&local_send_vector_agg_size, &max_send_vector_agg_size, 1,MPI_LONG, MPI_MAX, MPI_COMM_WORLD);
   // Add padding
-	for(int i = local_send_vector_agg_size;i<max_send_vector_agg_size;i++){
+	for(long i = local_send_vector_agg_size;i<max_send_vector_agg_size;i++){
 		send_vector_agg.push_back(*temp_key_value);
 	}
 	vector<Key_value> recv_vector_agg(max_send_vector_agg_size*num_ranks);
@@ -211,8 +207,6 @@ int main(int argc, char *argv[]){
   /* GATHER PHASE DONE! */
   //double gather_phase_runtime = mysecond() - gather_start_time;
   cout<<"Process "<<rank<<": Gather Phase done!"<<endl;
-  // TODO: Add measure time etc. and print measurements to file
-  // TODO: Print results to file
 
 	if(rank == MASTER) {
     double total_runtime = mysecond() - init_start_time;
@@ -239,8 +233,7 @@ int main(int argc, char *argv[]){
     // Print performance file
     MPI_File performance_file;
     MPI_File_open(MPI_COMM_SELF, PERFORMANCE_FILE, MPI_MODE_CREATE | MPI_MODE_APPEND | MPI_MODE_WRONLY, MPI_INFO_NULL, &performance_file);
-    line_length = sprintf(line_buffer, "File: %s, Size: %ld bytes, #Processes: %d, Runtime: %11.8f seconds\n",
-                            FILE, file_size, num_ranks, total_runtime);
+    line_length = sprintf(line_buffer, "File: %s, Size: %lld bytes, #Processes: %d, Runtime: %11.8f seconds", FILE, file_size, num_ranks, total_runtime);
     if (line_length > 0) {
       MPI_File_write(performance_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
     }
