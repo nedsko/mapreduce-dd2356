@@ -39,11 +39,14 @@ int calculateDestRank(const char *word, int length, int num_ranks) {
 
 // Word counting program
 int main(int argc, char *argv[]){
-	int rank, num_ranks;
+	int rank_int, num_ranks_int;
 
 	MPI_Init(&argc, &argv);
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &num_ranks);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank_int);
+	MPI_Comm_size(MPI_COMM_WORLD, &num_ranks_int);
+
+  long rank = (long)rank_int;
+  long num_ranks = (long)num_ranks_int;
 
 	MPI_File fh;
   // Declare MPI derived data type equal to one Key_value struct
@@ -72,7 +75,8 @@ int main(int argc, char *argv[]){
 	if(rank == MASTER){
 		MPI_File_open(MPI_COMM_SELF , FILE, MPI_MODE_RDONLY , MPI_INFO_NULL , &fh);
 		MPI_File_get_size(fh, &file_size);
-		nr_of_reads = file_size/(long long)(READ_SIZE*(num_ranks-1));
+    cout<<"FILE SIZE: "<<file_size<<endl;
+		nr_of_reads = file_size/(READ_SIZE*(num_ranks-1));
 	}
   // Broadcast nr_of_reads to all processes
 	MPI_Bcast(&nr_of_reads, 1, MPI_LONG_LONG_INT, MASTER, MPI_COMM_WORLD);
@@ -233,7 +237,7 @@ int main(int argc, char *argv[]){
     // Print performance file
     MPI_File performance_file;
     MPI_File_open(MPI_COMM_SELF, PERFORMANCE_FILE, MPI_MODE_CREATE | MPI_MODE_APPEND | MPI_MODE_WRONLY, MPI_INFO_NULL, &performance_file);
-    line_length = sprintf(line_buffer, "File: %s, Size: %lld bytes, #Processes: %d, Runtime: %11.8f seconds", FILE, file_size, num_ranks, total_runtime);
+    line_length = sprintf(line_buffer, "File: %s, Size: %lld bytes, #Processes: %ld, Runtime: %11.8f seconds", FILE, file_size, num_ranks, total_runtime);
     if (line_length > 0) {
       MPI_File_write(performance_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
     }
