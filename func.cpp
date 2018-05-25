@@ -44,7 +44,7 @@ Key_value func_map(char *buf,long &offset){
 		}
 		offset++; // No valid char found so move to next
 
-		if(offset>READ_SIZE){
+		if(offset>=READ_SIZE){
 			while(char_count<KEY_MAX_SIZE){
 				p.key[char_count]='\0';
 				char_count++;
