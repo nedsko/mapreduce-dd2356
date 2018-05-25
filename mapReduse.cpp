@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <sys/time.h>
 
-#define FILE "/cfs/klemming/scratch/s/sergiorg/DD2356/input/wikipedia_20GB.txt" // Input file
+#define FILE "wikipedia_test_small.txt" // Input file
 #define MASTER 0
 #define NULL_STRING "fail\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
 #define RESULT_FILE "mapreduce_results.txt"
@@ -60,6 +60,22 @@ int main(int argc, char *argv[]){
   MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_key_value_type);
   MPI_Type_commit(&mpi_key_value_type);
 
+  MPI_Aint length = READ_SIZE * sizeof(char);
+	MPI_Aint extent = num_ranks * length;
+	MPI_Offset disp = rank * length;
+	MPI_Datatype contig, filetype;
+
+	MPI_Type_contiguous(READ_SIZE, MPI_BYTE, &contig);
+	MPI_Type_create_resized(contig, 0, extent, &filetype);
+	MPI_Type_commit(&filetype);
+
+	
+	//MPI_File_read_all(fh, buffer, CHUNK_SIZE, MPI_INT, MPI_STATUS_IGNORE);
+
+
+
+
+
   double init_start_time;
   /* START OF MAP PHASE */
   if (rank == MASTER) {
@@ -67,61 +83,53 @@ int main(int argc, char *argv[]){
   }
   cout<<"Process "<<rank<<": Map Phase started!"<<endl;
   // Buffers for sending/receiving data from input file
-	char *send_read_file_data = new char[(long long)READ_SIZE*(num_ranks-1)];
+	char *send_read_file_data = new char[(long long)READ_SIZE*(num_ranks)];
 	char *re_file_data = new char[READ_SIZE];
 
 	long long nr_of_reads; // Number of times the file will be read by MASTER
   MPI_Offset file_size;
-	if(rank == MASTER){
-		MPI_File_open(MPI_COMM_SELF , FILE, MPI_MODE_RDONLY , MPI_INFO_NULL , &fh);
-		MPI_File_get_size(fh, &file_size);
-    cout<<"FILE SIZE: "<<file_size<<endl;
-		nr_of_reads = file_size/(READ_SIZE*(num_ranks-1));
-	}
+	//if(rank == MASTER){
+	MPI_File_open(MPI_COMM_WORLD , FILE, MPI_MODE_RDONLY , MPI_INFO_NULL , &fh);
+	MPI_File_set_view(fh, disp, MPI_BYTE, filetype, "native", MPI_INFO_NULL);
+	MPI_File_get_size(fh, &file_size);
+  
+	nr_of_reads = file_size/(READ_SIZE*(num_ranks));
+	
   // Broadcast nr_of_reads to all processes
-	MPI_Bcast(&nr_of_reads, 1, MPI_LONG_LONG_INT, MASTER, MPI_COMM_WORLD);
+	
   cout<<"NUMBER OF READS: "<<nr_of_reads<<endl;
   // Prepare send to slave processes
-	int *sendCount = new int[num_ranks];
-	fill(sendCount,sendCount+num_ranks,READ_SIZE);
-  // Master does not receive any data from file so sendCount[0] = 0 and displ[0:1] = 0
-	sendCount[0] = 0;
-	int *displ = new int[num_ranks];
-  displ[0] = 0;
-	for(int k = 1; k<num_ranks;k++){
-		displ[k] = (k-1)*READ_SIZE;
-	}
-	int recvcount = (rank==MASTER) ? 0:READ_SIZE;
+	
+	
   // Vector used to separate <key,value> pairs into buckets.
 	vector<map<string, Key_value> > buckets(num_ranks);
 
 	for(long long i = 0; i<nr_of_reads;i++){
     // Only master reads from file
-		if(rank == MASTER){
-			MPI_File_read(fh,send_read_file_data, READ_SIZE*(num_ranks-1),MPI_BYTE, MPI_STATUS_IGNORE);
-		}
+		
+		MPI_File_read(fh, re_file_data, READ_SIZE, MPI_BYTE, MPI_STATUS_IGNORE);
+		
     // Scatter read data to slave processes
-		MPI_Scatterv(send_read_file_data,sendCount,displ,MPI_BYTE,re_file_data,recvcount,MPI_BYTE,MASTER,MPI_COMM_WORLD);
     // Repeatedly call Map() on received buffer until all data has been processed
-		if(rank != MASTER){
-			long offset = 0;
-			int bucket_index;
-			string key;
+	
+		long offset = 0;
+		int bucket_index;
+		string key;
 
-			while(offset<READ_SIZE){
-				Key_value p = func_map(re_file_data,offset);
-				string key_test = p.key;
-        // Check that we did not go over allowed offset
-				if(p.count == 0){
-					break;
-				}
-				bucket_index = calculateDestRank(p.key,KEY_MAX_SIZE,num_ranks);
-				if(buckets[bucket_index].count(key_test)==0){
-					buckets[bucket_index][key_test] = p;
-				} else {
-					buckets[bucket_index][key_test].count++;
-				}
+		while(offset<READ_SIZE){
+			Key_value p = func_map(re_file_data,offset);
+			string key_test = p.key;
+      // Check that we did not go over allowed offset
+			if(p.count == 0){
+				break;
 			}
+			bucket_index = calculateDestRank(p.key,KEY_MAX_SIZE,num_ranks);
+			if(buckets[bucket_index].count(key_test)==0){
+				buckets[bucket_index][key_test] = p;
+			} else {
+				buckets[bucket_index][key_test].count++;
+			}
+		
 		}
 	}
   /* MAP PHASE DONE! */
@@ -247,8 +255,6 @@ int main(int argc, char *argv[]){
   MPI_Type_free(&mpi_key_value_type);
   delete[] send_read_file_data;
   delete[] re_file_data;
-  delete[] sendCount;
-  delete[] displ;
   delete temp_key_value;
 
 	MPI_Finalize();
