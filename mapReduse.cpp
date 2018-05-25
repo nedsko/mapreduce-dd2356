@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <sys/time.h>
 
-#define FILE "wikipedia_test_small.txt" // Input file
+#define FILE "/cfs/klemming/scratch/s/sergiorg/DD2356/input/wikipedia_20GB.txt" // Input file
 #define MASTER 0
 #define NULL_STRING "fail\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
 #define RESULT_FILE "mapreduce_results.txt"
@@ -69,13 +69,6 @@ int main(int argc, char *argv[]){
 	MPI_Type_create_resized(contig, 0, extent, &filetype);
 	MPI_Type_commit(&filetype);
 
-	
-	//MPI_File_read_all(fh, buffer, CHUNK_SIZE, MPI_INT, MPI_STATUS_IGNORE);
-
-
-
-
-
   double init_start_time;
   /* START OF MAP PHASE */
   if (rank == MASTER) {
@@ -88,30 +81,20 @@ int main(int argc, char *argv[]){
 
 	long long nr_of_reads; // Number of times the file will be read by MASTER
   MPI_Offset file_size;
-	
+
 	MPI_File_open(MPI_COMM_WORLD , FILE, MPI_MODE_RDONLY , MPI_INFO_NULL , &fh);
 	MPI_File_set_view(fh, disp, MPI_BYTE, filetype, "native", MPI_INFO_NULL);
 	MPI_File_get_size(fh, &file_size);
-  
+
 	nr_of_reads = file_size/(READ_SIZE*(num_ranks));
-	
-  // Broadcast nr_of_reads to all processes
-	
   cout<<"NUMBER OF READS: "<<nr_of_reads<<endl;
   // Prepare send to slave processes
-	
-	
   // Vector used to separate <key,value> pairs into buckets.
+  // Use individual IO so every process reads from the input file
 	vector<map<string, Key_value> > buckets(num_ranks);
-
 	for(long long i = 0; i<nr_of_reads;i++){
-    // Only master reads from file
-		//read_all or read 
-		MPI_File_read_all(fh, re_file_data, READ_SIZE, MPI_BYTE, MPI_STATUS_IGNORE);
-		
-    // Scatter read data to slave processes
+		MPI_File_read(fh, re_file_data, READ_SIZE, MPI_BYTE, MPI_STATUS_IGNORE);
     // Repeatedly call Map() on received buffer until all data has been processed
-	
 		long offset = 0;
 		int bucket_index;
 		string key;
@@ -129,7 +112,7 @@ int main(int argc, char *argv[]){
 			} else {
 				buckets[bucket_index][key_test].count++;
 			}
-		
+
 		}
 	}
   /* MAP PHASE DONE! */
@@ -245,7 +228,7 @@ int main(int argc, char *argv[]){
     // Print performance file
     MPI_File performance_file;
     MPI_File_open(MPI_COMM_SELF, PERFORMANCE_FILE, MPI_MODE_CREATE | MPI_MODE_APPEND | MPI_MODE_WRONLY, MPI_INFO_NULL, &performance_file);
-    line_length = sprintf(line_buffer, "File: %s, Size: %lld bytes, #Processes: %ld, Runtime: %11.8f seconds", FILE, file_size, num_ranks, total_runtime);
+    line_length = sprintf(line_buffer, "File: %s, Size: %lld bytes, #Processes: %ld, Runtime: %11.8f seconds\n", FILE, file_size, num_ranks, total_runtime);
     if (line_length > 0) {
       MPI_File_write(performance_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
     }

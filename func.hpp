@@ -6,7 +6,7 @@
 #include <ctype.h>
 #include <sstream>
 #define KEY_MAX_SIZE 30 // Maximum length of a key(word)
-#define READ_SIZE 64  // Size of chunks read from file and sent to one process
+#define READ_SIZE 67108864  // Size of chunks read from file and sent to one process
 // Struct used to hold <key,value> pairs
 struct Key_value
 {
