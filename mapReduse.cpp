@@ -51,7 +51,7 @@ int main(int argc, char *argv[]){
 	MPI_File fh;
   // Declare MPI derived data type equal to one Key_value struct
 	const int nitems=2;
-	int blocklengths[2] = {1,30};
+	int blocklengths[2] = {1,KEY_MAX_SIZE};
   MPI_Datatype types[2] = {MPI_LONG, MPI_CHAR};
   MPI_Datatype mpi_key_value_type;
   MPI_Aint offsets[2];
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]){
   }
   cout<<"Process "<<rank<<": Map Phase started!"<<endl;
   // Buffers for sending/receiving data from input file
-	char *send_read_file_data = new char[(long long)READ_SIZE*(num_ranks)];
+	char *send_read_file_data = new char[(size_t)READ_SIZE*(num_ranks)];
 	char *re_file_data = new char[READ_SIZE];
 
 	long long nr_of_reads; // Number of times the file will be read by MASTER
@@ -92,12 +92,18 @@ int main(int argc, char *argv[]){
 	MPI_File_open(MPI_COMM_WORLD , FILE, MPI_MODE_RDONLY , MPI_INFO_NULL , &fh);
 	MPI_File_set_view(fh, disp, MPI_BYTE, filetype, "native", MPI_INFO_NULL);
 	MPI_File_get_size(fh, &file_size);
-  
 	nr_of_reads = file_size/(READ_SIZE*(num_ranks));
-	
+	long miss = file_size - nr_of_reads*READ_SIZE*num_ranks;
+	cout<<"Process "<<rank<<" miss : "<<miss<<endl;
+	long extra_reads = miss/READ_SIZE;
+	cout<<"Process "<<rank<<" extra_reads : "<<extra_reads<<endl;
+	if(rank<extra_reads){
+
+		nr_of_reads +=1;
+	}
   // Broadcast nr_of_reads to all processes
 	
-  cout<<"NUMBER OF READS: "<<nr_of_reads<<endl;
+  cout<<"Process "<<rank<<" NUMBER OF READS: "<<nr_of_reads<<endl;
   // Prepare send to slave processes
 	
 	
@@ -107,7 +113,7 @@ int main(int argc, char *argv[]){
 	for(long long i = 0; i<nr_of_reads;i++){
     // Only master reads from file
 		//read_all or read 
-		MPI_File_read_all(fh, re_file_data, READ_SIZE, MPI_BYTE, MPI_STATUS_IGNORE);
+		MPI_File_read(fh, re_file_data, READ_SIZE, MPI_BYTE, MPI_STATUS_IGNORE);
 		
     // Scatter read data to slave processes
     // Repeatedly call Map() on received buffer until all data has been processed
@@ -159,8 +165,8 @@ int main(int argc, char *argv[]){
   // Fill and pad send_vector
   Key_value *temp_key_value = new Key_value;
 	temp_key_value->count = 0;
-	strncpy(temp_key_value->key, NULL_STRING, 30);
-	for(int b = 0; b<num_ranks;b++){
+	strncpy(temp_key_value->key, NULL_STRING, KEY_MAX_SIZE);
+	for(int b = 0; b<buckets.size();b++){
 		int curent_size = 0;
 		for(map<string, Key_value>::iterator it = buckets[b].begin(); it!=buckets[b].end();++it){
 			send_vector.push_back(it->second);
@@ -231,16 +237,20 @@ int main(int argc, char *argv[]){
     for (vector<Key_value>::iterator it = recv_vector_agg.begin();it != recv_vector_agg.end();++it) {
       if(it->count!=0){
         line_length = sprintf(line_buffer, "Word: %s, count: %ld\n", it->key, it->count);
+        cout<<line_buffer<<endl;
         if (line_length > 0) {
           MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
           unique_words++;
         }
       }
     }
+    /*
     line_length = sprintf(line_buffer, "Number of unique words: %ld", unique_words);
     if (line_length > 0) {
       MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
     }
+    */
+    cout<<"num uniq words "<<unique_words<<endl;
     MPI_File_close(&result_file);
     // Print performance file
     MPI_File performance_file;

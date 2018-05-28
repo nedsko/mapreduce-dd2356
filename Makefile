@@ -3,6 +3,8 @@ CC = mpicxx
 
 path = /home/c/mhpc/mapReduse
 
+p = 6
+
  # the build target executable:
 TARGET = mapReduse
 
@@ -16,7 +18,8 @@ func.o: func.cpp func.hpp
 run:
 	make
 	clear
-	mpirun -n 4 ./$(TARGET).out
+	mpirun -n $(p) ./$(TARGET).out
+	sort mapreduce_results.txt > $(p)_sort.txt
 
 test: func.o
 	g++ -I$(shell pwd) test.cpp -o test.out func.o
