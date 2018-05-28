@@ -69,13 +69,6 @@ int main(int argc, char *argv[]){
 	MPI_Type_create_resized(contig, 0, extent, &filetype);
 	MPI_Type_commit(&filetype);
 
-	
-	//MPI_File_read_all(fh, buffer, CHUNK_SIZE, MPI_INT, MPI_STATUS_IGNORE);
-
-
-
-
-
   double init_start_time;
   /* START OF MAP PHASE */
   if (rank == MASTER) {
@@ -88,10 +81,11 @@ int main(int argc, char *argv[]){
 
 	long long nr_of_reads; // Number of times the file will be read by MASTER
   MPI_Offset file_size;
-	
+
 	MPI_File_open(MPI_COMM_WORLD , FILE, MPI_MODE_RDONLY , MPI_INFO_NULL , &fh);
 	MPI_File_set_view(fh, disp, MPI_BYTE, filetype, "native", MPI_INFO_NULL);
 	MPI_File_get_size(fh, &file_size);
+
 	nr_of_reads = file_size/(READ_SIZE*(num_ranks));
 	long miss = file_size - nr_of_reads*READ_SIZE*num_ranks;
 	cout<<"Process "<<rank<<" miss : "<<miss<<endl;
@@ -104,20 +98,20 @@ int main(int argc, char *argv[]){
   // Broadcast nr_of_reads to all processes
 	
   cout<<"Process "<<rank<<" NUMBER OF READS: "<<nr_of_reads<<endl;
-  // Prepare send to slave processes
-	
-	
-  // Vector used to separate <key,value> pairs into buckets.
-	vector<map<string, Key_value> > buckets(num_ranks);
 
+  // Prepare send to slave processes
+  // Vector used to separate <key,value> pairs into buckets.
+  // Use individual IO so every process reads from the input file
+	vector<map<string, Key_value> > buckets(num_ranks);
 	for(long long i = 0; i<nr_of_reads;i++){
+
     // Only master reads from file
 		//read_all or read 
 		MPI_File_read(fh, re_file_data, READ_SIZE, MPI_BYTE, MPI_STATUS_IGNORE);
 		
     // Scatter read data to slave processes
+
     // Repeatedly call Map() on received buffer until all data has been processed
-	
 		long offset = 0;
 		int bucket_index;
 		string key;
@@ -135,7 +129,7 @@ int main(int argc, char *argv[]){
 			} else {
 				buckets[bucket_index][key_test].count++;
 			}
-		
+
 		}
 	}
   /* MAP PHASE DONE! */
