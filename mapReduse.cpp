@@ -9,17 +9,16 @@
 #include <cstdint>
 #include <sys/time.h>
 
-#define FILE "wikipedia_test_small.txt" // Input file
+#define FILE "/cfs/klemming/scratch/s/sergiorg/DD2356/input/wikipedia_40GB.txt" // Input file
 #define MASTER 0
 #define NULL_STRING "fail\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
 #define RESULT_FILE "mapreduce_results.txt"
 #define PERFORMANCE_FILE "mapreduce_performance.txt"
 
+// Function for measuring time.
 double mysecond();
 
-//wikipedia_test_small.txt number_test.txt
 using namespace std;
-
 
 // Hash function used to decide bucket for given word
 #define SEED_LENGTH 65
@@ -59,7 +58,7 @@ int main(int argc, char *argv[]){
   offsets[1] = sizeof(long);
   MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_key_value_type);
   MPI_Type_commit(&mpi_key_value_type);
-
+  // Create MPI_Datatype used for individual IO.
   MPI_Aint length = READ_SIZE * sizeof(char);
 	MPI_Aint extent = num_ranks * length;
 	MPI_Offset disp = rank * length;
@@ -71,47 +70,37 @@ int main(int argc, char *argv[]){
 
   double init_start_time;
   /* START OF MAP PHASE */
+  // Only master keeps track of time.
   if (rank == MASTER) {
     init_start_time = mysecond();
   }
-  cout<<"Process "<<rank<<": Map Phase started!"<<endl;
-  // Buffers for sending/receiving data from input file
-	char *send_read_file_data = new char[(size_t)READ_SIZE*(num_ranks)];
+  //cout<<"Process "<<rank<<": Map Phase started!"<<endl;
+
+  // Buffers for reading data from input file
 	char *re_file_data = new char[READ_SIZE];
 
-	long long nr_of_reads; // Number of times the file will be read by MASTER
+	long long nr_of_reads; // Number of times the file will be read
   MPI_Offset file_size;
-
+  // Set views used for individual IO.
 	MPI_File_open(MPI_COMM_WORLD , FILE, MPI_MODE_RDONLY , MPI_INFO_NULL , &fh);
 	MPI_File_set_view(fh, disp, MPI_BYTE, filetype, "native", MPI_INFO_NULL);
 	MPI_File_get_size(fh, &file_size);
 
 	nr_of_reads = file_size/(READ_SIZE*(num_ranks));
-	long miss = file_size - nr_of_reads*READ_SIZE*num_ranks;
-	cout<<"Process "<<rank<<" miss : "<<miss<<endl;
+  // Handle case where size of file is not aligned with number_of_reads and num_ranks
+	long miss = file_size - nr_of_reads*READ_SIZE*num_ranks; // Number of bytes left trailing at EOF.
 	long extra_reads = miss/READ_SIZE;
-	cout<<"Process "<<rank<<" extra_reads : "<<extra_reads<<endl;
-	if(rank<extra_reads){
-
+  // Recruit one process per trailing chunks of size READ_SIZE.
+  // Must be in order of ranks. See report for more details.
+	if(rank < extra_reads){
 		nr_of_reads +=1;
 	}
-  // Broadcast nr_of_reads to all processes
-	
-  cout<<"Process "<<rank<<" NUMBER OF READS: "<<nr_of_reads<<endl;
-
-  // Prepare send to slave processes
   // Vector used to separate <key,value> pairs into buckets.
   // Use individual IO so every process reads from the input file
 	vector<map<string, Key_value> > buckets(num_ranks);
 	for(long long i = 0; i<nr_of_reads;i++){
-
-    // Only master reads from file
-		//read_all or read 
 		MPI_File_read(fh, re_file_data, READ_SIZE, MPI_BYTE, MPI_STATUS_IGNORE);
-		
-    // Scatter read data to slave processes
-
-    // Repeatedly call Map() on received buffer until all data has been processed
+    // Repeatedly call Map() on read buffer until all data has been processed
 		long offset = 0;
 		int bucket_index;
 		string key;
@@ -123,6 +112,7 @@ int main(int argc, char *argv[]){
 			if(p.count == 0){
 				break;
 			}
+      // Calc. buckets hash for found word.
 			bucket_index = calculateDestRank(p.key,KEY_MAX_SIZE,num_ranks);
 			if(buckets[bucket_index].count(key_test)==0){
 				buckets[bucket_index][key_test] = p;
@@ -133,13 +123,12 @@ int main(int argc, char *argv[]){
 		}
 	}
   /* MAP PHASE DONE! */
-  //double map_phase_runtime = mysecond() - init_start_time;
-  cout<<"Process "<<rank<<": Map Phase done!"<<endl;
+  //cout<<"Process "<<rank<<": Map Phase done!"<<endl;
 
   /* REDISTRIBUTION OF KEY VALUES */
-  //double redistribution_start_time = mysecond();
-  cout<<"Process "<<rank<<": Redistribution Phase started!"<<endl;
-  // Calculate the size of the biggest bucket. Used for padding later
+  //cout<<"Process "<<rank<<": Redistribution Phase started!"<<endl;
+
+  // Calculate the size of the biggest bucket. Used for padding on Alltoall later
 	long elements_in_bucket[num_ranks];
 	long total_bucket_size = 0;
 	long local_max_bucket_size = 0;
@@ -172,13 +161,13 @@ int main(int argc, char *argv[]){
 	}
   // Redistribute data using Alltoall
 	MPI_Alltoall(send_vector.data(),global_max_bucket_size,mpi_key_value_type,recv_vector.data(),global_max_bucket_size,mpi_key_value_type,MPI_COMM_WORLD);
-  //double redistribution_phase_runtime = mysecond() - redistribution_start_time;
+
   /* REDISTRIBUTION OF KEY VALUES DONE! */
-  cout<<"Process "<<rank<<": Redistribution Phase done!"<<endl;
+  //cout<<"Process "<<rank<<": Redistribution Phase done!"<<endl;
 
   /* START OF REDUCE PHASE */
-  //double reduce_start_time = mysecond();
-  cout<<"Process "<<rank<<": Reduce Phase started!"<<endl;
+  //cout<<"Process "<<rank<<": Reduce Phase started!"<<endl;
+
   // Build map object from recv_vector and call reduce() on the data
 	map<string, Key_value> agg_key_value_map; // agg = aggregated
 	for(vector<Key_value>::iterator it = recv_vector.begin(); it != recv_vector.end();++it){
@@ -186,7 +175,7 @@ int main(int argc, char *argv[]){
     // Padding, don't include
 		if(it->count == 0)
 			continue;
-    // key is in map then call reduce, otherwise add to map
+    // if key is in map then call reduce, otherwise add to map
 		if(agg_key_value_map.count(key_test)>0){
 			reduce(agg_key_value_map[key_test],*it);
 		} else {
@@ -194,11 +183,11 @@ int main(int argc, char *argv[]){
 		}
 	}
   /* REDUCE PHASE DONE! */
-  //double reduce_phase_runtime = mysecond() - reduce_start_time;
-  cout<<"Process "<<rank<<": Reduce Phase done!"<<endl;
+  //cout<<"Process "<<rank<<": Reduce Phase done!"<<endl;
+
   /* GATHER RESULTS PHASE */
-  //double gather_start_time = mysecond();
-  cout<<"Process "<<rank<<": Gather Phase started!"<<endl;
+  //cout<<"Process "<<rank<<": Gather Phase started!"<<endl;
+
   // Create and fill send vector with aggregated values
 	vector<Key_value> send_vector_agg;
 	for(map<string, Key_value>::iterator  it = agg_key_value_map.begin();it != agg_key_value_map.end();++it){
@@ -217,35 +206,13 @@ int main(int argc, char *argv[]){
 	MPI_Gather(send_vector_agg.data(), max_send_vector_agg_size, mpi_key_value_type,recv_vector_agg.data(), max_send_vector_agg_size, mpi_key_value_type,MASTER, MPI_COMM_WORLD);
 
   /* GATHER PHASE DONE! */
-  //double gather_phase_runtime = mysecond() - gather_start_time;
-  cout<<"Process "<<rank<<": Gather Phase done!"<<endl;
+  //cout<<"Process "<<rank<<": Gather Phase done!"<<endl;
 
+  // Print results and performance measurment to files.
 	if(rank == MASTER) {
     double total_runtime = mysecond() - init_start_time;
-    // Print results to result file
-    MPI_File result_file;
     char line_buffer[100+KEY_MAX_SIZE];
     int line_length;
-    long unique_words = 0;
-    MPI_File_open(MPI_COMM_SELF, RESULT_FILE, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &result_file);
-    for (vector<Key_value>::iterator it = recv_vector_agg.begin();it != recv_vector_agg.end();++it) {
-      if(it->count!=0){
-        line_length = sprintf(line_buffer, "Word: %s, count: %ld\n", it->key, it->count);
-        cout<<line_buffer<<endl;
-        if (line_length > 0) {
-          MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
-          unique_words++;
-        }
-      }
-    }
-    /*
-    line_length = sprintf(line_buffer, "Number of unique words: %ld", unique_words);
-    if (line_length > 0) {
-      MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
-    }
-    */
-    cout<<"num uniq words "<<unique_words<<endl;
-    MPI_File_close(&result_file);
     // Print performance file
     MPI_File performance_file;
     MPI_File_open(MPI_COMM_SELF, PERFORMANCE_FILE, MPI_MODE_CREATE | MPI_MODE_APPEND | MPI_MODE_WRONLY, MPI_INFO_NULL, &performance_file);
@@ -254,13 +221,33 @@ int main(int argc, char *argv[]){
       MPI_File_write(performance_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
     }
     MPI_File_close(&performance_file);
+
+    // Print results to result file
+    MPI_File result_file;
+    long unique_words = 0;
+    MPI_File_open(MPI_COMM_SELF, RESULT_FILE, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &result_file);
+    for (vector<Key_value>::iterator it = recv_vector_agg.begin();it != recv_vector_agg.end();++it) {
+     if(it->count!=0){
+       line_length = sprintf(line_buffer, "Word: %s, count: %ld\n", it->key, it->count);
+       //cout<<line_buffer<<endl;
+       if (line_length > 0) {
+         //MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
+         unique_words++;
+         }
+       }
+     }
+     line_length = sprintf(line_buffer, "Number of unique words: %ld", unique_words);
+     if (line_length > 0) {
+       MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
+     }
+     cout<<"num uniq words "<<unique_words<<endl;
+     MPI_File_close(&result_file);
 	}
   // Free allocated memory
   MPI_Type_free(&mpi_key_value_type);
-  delete[] send_read_file_data;
+  MPI_Type_free(&filetype);
   delete[] re_file_data;
   delete temp_key_value;
-
 	MPI_Finalize();
 	return 0;
 }
