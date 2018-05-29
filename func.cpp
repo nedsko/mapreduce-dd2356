@@ -2,12 +2,12 @@
 #include "func.hpp"
 
 /* Map() in MapReduce programming model.
- * Returns the first word(as defined in project instructions) found
- * in the buffer as a Key_value struct with count 1. Pads the word with
- * '\0' until it reaches length KEY_MAX_SIZE and moves the offset forward.
- * Words longer than KEY_MAX_SIZE will be split. If the offset goes over READ_SIZE
- * a null string with count = 0 is returned.
- */
+* Returns the first word(as defined in project instructions) found
+* in the buffer as a Key_value struct with count 1. Pads the word with
+* '\0' until it reaches length KEY_MAX_SIZE and moves the offset forward.
+* Words longer than KEY_MAX_SIZE will be split. If the offset goes over READ_SIZE
+* a null string with count = 0 is returned.
+*/
 Key_value func_map(char *buf,long &offset){
 	std::stringstream ss;
 	struct Key_value p;
