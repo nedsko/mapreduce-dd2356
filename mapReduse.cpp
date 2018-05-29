@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <sys/time.h>
 
-#define FILE "/cfs/klemming/scratch/s/sergiorg/DD2356/input/wikipedia_80GB.txt" // Input file
+#define FILE "wikipedia_test_small.txt" // Input file
 #define MASTER 0
 #define NULL_STRING "fail\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
 #define RESULT_FILE "mapreduce_results.txt"
@@ -231,7 +231,7 @@ int main(int argc, char *argv[]){
                 line_length = sprintf(line_buffer, "Word: %s, count: %ld\n", it->key, it->count);
                 //cout<<line_buffer<<endl;
                 if (line_length > 0) {
-                    //MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
+                    MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
                     unique_words++;
                 }
             }
@@ -240,7 +240,7 @@ int main(int argc, char *argv[]){
         if (line_length > 0) {
             MPI_File_write(result_file, line_buffer, line_length, MPI_CHAR, MPI_STATUS_IGNORE);
         }
-        cout<<"num uniq words "<<unique_words<<endl;
+        //cout<<"num uniq words "<<unique_words<<endl;
         MPI_File_close(&result_file);
     }
     // Free allocated memory
